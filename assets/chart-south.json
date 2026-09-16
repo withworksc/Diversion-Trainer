@@ -1,0 +1,26 @@
+{
+  "source": "VFR Chart - ICAO - Taipei FIR - 1.500000 - 20250920 (English).pdf",
+  "projection": "spherical Mercator, matches CAA sheet",
+  "bounds": {
+    "lon0": 119.85,
+    "lon1": 121.9,
+    "lat0": 21.75,
+    "lat1": 24.3
+  },
+  "pixels": {
+    "width": 1400,
+    "height": 1882
+  },
+  "sheet_transform": {
+    "comment": "PDF points on the full sheet; Ymerc in degrees",
+    "x_pt": [
+      -72920.27890450614,
+      631.1252267020027
+    ],
+    "y_pt": [
+      16811.751311180684,
+      -627.53771713136
+    ]
+  },
+  "note": "Place by projecting the two opposite corners; the mapping is linear in (lon, Ymerc) so interior points are exact."
+}

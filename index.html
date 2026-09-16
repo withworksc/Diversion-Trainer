@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C8 Diversion Trainer — RCFN / RCKW</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>C8 Diversion Trainer</h1>
+  <span class="sub">RCFN → RCKW · 底圖：CAA VFR Chart ICAO Taipei FIR 1:500,000 (20 Sep 2025)</span>
+  <span class="clock">計時 <b id="stopwatch">00:00</b></span>
+</header>
+
+<div class="controls">
+  <button id="next">出題</button>
+  <button id="reveal" class="ghost">顯示答案</button>
+  <label class="inline">改降場
+    <select id="destPick">
+      <option value="auto">依實際機率隨機</option>
+      <option value="RCKH">RCKH 高雄</option>
+      <option value="RCLY">RCLY 蘭嶼</option>
+      <option value="RCFN">RCFN 豐年</option>
+      <option value="RCGI">RCGI 綠島</option>
+      <option value="RCYU">RCYU 花蓮</option>
+    </select>
+  </label>
+</div>
+
+<div class="cols">
+  <section class="brief" id="brief"></section>
+  <section class="sheet" id="sheet"></section>
+</div>
+
+<p class="tip">
+  這個工具只給答案，不判對錯。距離與航向由圖上座標推算，誤差約 1–2 NM / 2–3°，正式作業請以航圖實量為準。
+  油耗以 6.6 gal/hr 計（與你 FPL 的 endurance 規則一致），保留油 30 分鐘 = 3.3 gal。變差一律取 4°W；圖上恆春一帶的等磁差線是 3.5°W，南段自己再修 0.5°。
+</p>
+
+</div>
+
+<script src="js/geo.js"></script>
+<script src="js/data.js"></script>
+<script src="js/scenario.js"></script>
+<script src="js/map.js"></script>
+<script src="js/compute.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>

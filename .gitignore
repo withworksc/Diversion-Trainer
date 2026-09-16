@@ -1,0 +1,11 @@
+.DS_Store
+.claude/
+node_modules/
+
+# source chart PDF (23 MB, CAA copyrighted publication) — kept locally only;
+# assets/chart-south.png is the derived crop actually used by the app
+*.pdf
+
+# archived original chat handoff (1.1 MB single-file prototype with inline
+# base64 raster) — kept locally for reference, not part of the repo
+diversion-trainer.html

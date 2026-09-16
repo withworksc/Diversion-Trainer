@@ -1,0 +1,10 @@
+{
+  "name": "c8-diversion-trainer",
+  "private": true,
+  "description": "C8 diversion drill trainer for the RCFN ↔ RCKW VFR corridor cross-country route",
+  "scripts": {
+    "start": "python3 -m http.server 8766",
+    "test": "node --test tests/*.test.js",
+    "report": "node tests/report.js"
+  }
+}
