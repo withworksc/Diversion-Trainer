@@ -72,7 +72,7 @@ document.getElementById('reveal').addEventListener('click',function(){
    不強迫一定要接搖桿才能用這個工具練改降。 */
 var attOn=false, questionActive=false, attState=Attitude.initialState(), attRAF=null, attLastT=null;
 var aiHost=document.getElementById('aiHost'), attToggle=document.getElementById('attToggle'),
-    attPanel=document.getElementById('attitude');
+    attPanel=document.getElementById('attitude'), colsEl=document.querySelector('.cols');
 
 // 回傳 -1~1 的 pitch 修正輸入(已過死區),抓到的搖桿都沒有可用軸就回傳 null
 // (null 代表「沒搖桿可顧」,跟「搖桿在中立位置回傳 0」要分開,見 js/attitude.js CFG 註解)
@@ -111,6 +111,7 @@ attToggle.addEventListener('click',function(){
   attOn=!attOn;
   this.setAttribute('aria-pressed',attOn);
   attPanel.hidden=!attOn;
+  colsEl.classList.toggle('att-on',attOn);
   if(attOn){
     attState=Attitude.initialState();
     aiHost.innerHTML=Attitude.renderSVG(attState);

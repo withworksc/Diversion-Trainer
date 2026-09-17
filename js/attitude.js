@@ -106,7 +106,8 @@ function step(state,dt,input,active,rnd){
 }
 
 /* ---------- G1000 風格姿態儀 + 高度帶／VSI ---------- */
-// 姿態儀 viewBox 240×240,中心 (120,120)、半徑 100,跟另一個專案的 HSI 同一個等級的尺寸。
+// 姿態儀 viewBox 240×240,中心 (120,120)。G1000 的 PFD 姿態儀本身是方形面板,不是
+// 圓形錶面——只有 roll 刻度那段弧線是彎的,不要整個做成圓形儀表(那是機械式 AI 的長相)。
 // 高度帶／VSI 接在右邊,共用同一張 SVG,寬度加到 340。
 
 // 天地線＋pitch ladder,畫在自己的局部座標系(0,0 = 姿態水平時的天地線),
@@ -115,7 +116,7 @@ function step(state,dt,input,active,rnd){
 function ladderSVG(){
   var g='',d;
   for(d=10; d<=20; d+=10){
-    var yUp=-d*CFG.pxPerDeg, yDn=d*CFG.pxPerDeg, w= d===10?46:64;
+    var yUp=-d*CFG.pxPerDeg, yDn=d*CFG.pxPerDeg, w= d===10?70:100;
     g+='<line x1="'+(-w/2)+'" y1="'+yUp+'" x2="'+(w/2)+'" y2="'+yUp+'" stroke="#fff" stroke-width="2"/>'+
        '<text x="'+(-w/2-14)+'" y="'+(yUp+4)+'" font-size="11" fill="#fff" text-anchor="middle">'+d+'</text>'+
        '<text x="'+(w/2+14)+'" y="'+(yUp+4)+'" font-size="11" fill="#fff" text-anchor="middle">'+d+'</text>'+
@@ -123,32 +124,38 @@ function ladderSVG(){
        '<text x="'+(-w/2-14)+'" y="'+(yDn+4)+'" font-size="11" fill="#fff" text-anchor="middle">'+d+'</text>'+
        '<text x="'+(w/2+14)+'" y="'+(yDn+4)+'" font-size="11" fill="#fff" text-anchor="middle">'+d+'</text>';
   }
+  // 5° 短刻度,不標數字——真實 G1000 在 10° 主刻度中間還有一條沒有字的短線
+  [-5,5,-15,15].forEach(function(d){
+    var y=-d*CFG.pxPerDeg;
+    g+='<line x1="-24" y1="'+y+'" x2="24" y2="'+y+'" stroke="#fff" stroke-width="1.3"/>';
+  });
   return g;
 }
 
 function aiSVG(state){
   var ty = clamp(state.pitch,-CFG.pitchLimit,CFG.pitchLimit)*CFG.pxPerDeg;
   return ''+
-    '<rect x="0" y="0" width="240" height="240" rx="12" fill="#0B0F12"/>'+
+    '<rect x="0" y="0" width="240" height="240" fill="#0B0F12"/>'+
     '<g clip-path="url(#aiFace)">'+
       '<g transform="translate(120 120) rotate('+(-state.roll)+') translate(0 '+ty.toFixed(1)+')">'+
-        '<rect x="-180" y="-480" width="600" height="480" fill="#1B5FA8"/>'+          // 天空
-        '<rect x="-180" y="0" width="600" height="480" fill="#7B5230"/>'+             // 地面
-        '<line x1="-180" y1="0" x2="420" y2="0" stroke="#fff" stroke-width="2.5"/>'+  // 天地線
+        '<rect x="-200" y="-480" width="640" height="480" fill="#1B5FA8"/>'+          // 天空
+        '<rect x="-200" y="0" width="640" height="480" fill="#7B5230"/>'+             // 地面
+        '<line x1="-200" y1="0" x2="440" y2="0" stroke="#fff" stroke-width="2.5"/>'+  // 天地線
         ladderSVG()+
       '</g>'+
     '</g>'+
-    '<circle cx="120" cy="120" r="100" fill="none" stroke="#4A5359" stroke-width="2"/>'+
-    // 固定的機身參考符號(G1000 風格:機翼微微下彎的「海鷗翼」黃色符號,黑色描邊,
-    // 不跟著轉,永遠代表飛機本身——兩邊天空/地面背景切換時都看得清楚)
-    '<g fill="none" stroke-linecap="round" stroke-linejoin="round">'+
-      '<polyline points="104,120 85,120 68,128" stroke="#000" stroke-width="7"/>'+
-      '<polyline points="136,120 155,120 172,128" stroke="#000" stroke-width="7"/>'+
-      '<polyline points="104,120 85,120 68,128" stroke="#FFD400" stroke-width="4"/>'+
-      '<polyline points="136,120 155,120 172,128" stroke="#FFD400" stroke-width="4"/>'+
+    '<rect x="1" y="1" width="238" height="238" fill="none" stroke="#4A5359" stroke-width="2"/>'+
+    // 固定的機身參考符號(G1000 風格:兩片直的「小翅膀」從中央缺口向外、向下斜張,
+    // 形狀像中文的「八」字,不是先平後彎的鉤子。黑色描邊,不跟著轉,永遠代表飛機本身。)
+    '<g stroke-linecap="round">'+
+      '<line x1="102" y1="117" x2="70" y2="132" stroke="#000" stroke-width="8"/>'+
+      '<line x1="138" y1="117" x2="170" y2="132" stroke="#000" stroke-width="8"/>'+
+      '<line x1="102" y1="117" x2="70" y2="132" stroke="#FFD400" stroke-width="5"/>'+
+      '<line x1="138" y1="117" x2="170" y2="132" stroke="#FFD400" stroke-width="5"/>'+
     '</g>'+
     '<circle cx="120" cy="120" r="3.5" fill="#FFD400" stroke="#000" stroke-width="1.5"/>'+
-    // roll 指標(prototype 固定在正上方,之後 roll 有值時繞著轉)、固定的傾角刻度
+    // roll 指標(prototype 固定在正上方,之後 roll 有值時繞著轉)、固定的傾角刻度弧線——
+    // 這一段本來就是彎的,是 G1000 真機的樣子,不是把整個儀表做成圓形
     '<polygon points="120,26 114,38 126,38" fill="#fff"/>'+
     '<g stroke="#fff" stroke-width="1.5">'+
       '<line x1="61.6" y1="49.7" x2="66.4" y2="57.9"/>'+   // -30°
@@ -197,7 +204,7 @@ function vsiSVG(state){
 
 function renderSVG(state){
   return '<svg viewBox="0 0 340 240" role="img" aria-label="姿態儀與高度帶(prototype)">'+
-    '<defs><clipPath id="aiFace"><circle cx="120" cy="120" r="100"/></clipPath></defs>'+
+    '<defs><clipPath id="aiFace"><rect x="0" y="0" width="240" height="240"/></clipPath></defs>'+
     aiSVG(state)+altTapeSVG(state)+vsiSVG(state)+
   '</svg>';
 }
