@@ -113,21 +113,29 @@ function step(state,dt,input,active,rnd){
 // 天地線＋pitch ladder,畫在自己的局部座標系(0,0 = 姿態水平時的天地線),
 // 外層再用 translate(120,120) 搬到面板中心——不要把「120」寫進這個函式裡面,
 // 之前這裡的線跟外面固定的機身符號對不起來就是這個原因(局部/絕對座標混用)。
+// 每條刻度線中間留缺口(給機身符號站的地方),兩截的內外端都加短的垂直端點,
+// 樣子是「⊢── ──⊣」而不是一條打通的直線——照使用者給的模擬器截圖描的。
 function ladderSVG(){
   var g='',d;
-  for(d=10; d<=20; d+=10){
-    var yUp=-d*CFG.pxPerDeg, yDn=d*CFG.pxPerDeg, w= d===10?70:100;
-    g+='<line x1="'+(-w/2)+'" y1="'+yUp+'" x2="'+(w/2)+'" y2="'+yUp+'" stroke="#fff" stroke-width="2"/>'+
-       '<text x="'+(-w/2-14)+'" y="'+(yUp+4)+'" font-size="11" fill="#fff" text-anchor="middle">'+d+'</text>'+
-       '<text x="'+(w/2+14)+'" y="'+(yUp+4)+'" font-size="11" fill="#fff" text-anchor="middle">'+d+'</text>'+
-       '<line x1="'+(-w/2)+'" y1="'+yDn+'" x2="'+(w/2)+'" y2="'+yDn+'" stroke="#fff" stroke-width="2"/>'+
-       '<text x="'+(-w/2-14)+'" y="'+(yDn+4)+'" font-size="11" fill="#fff" text-anchor="middle">'+d+'</text>'+
-       '<text x="'+(w/2+14)+'" y="'+(yDn+4)+'" font-size="11" fill="#fff" text-anchor="middle">'+d+'</text>';
+  function bar(y,half,label){
+    var seg='<g stroke="#fff" stroke-width="2">'+
+      '<line x1="'+(-half)+'" y1="'+y+'" x2="-14" y2="'+y+'"/>'+
+      '<line x1="14" y1="'+y+'" x2="'+half+'" y2="'+y+'"/>'+
+      '<line x1="'+(-half)+'" y1="'+(y-4)+'" x2="'+(-half)+'" y2="'+(y+4)+'"/>'+
+      '<line x1="'+half+'" y1="'+(y-4)+'" x2="'+half+'" y2="'+(y+4)+'"/>'+
+    '</g>';
+    if(label!=null) seg+='<text x="'+(-half-14)+'" y="'+(y+4)+'" font-size="11" fill="#fff" text-anchor="middle">'+label+'</text>'+
+      '<text x="'+(half+14)+'" y="'+(y+4)+'" font-size="11" fill="#fff" text-anchor="middle">'+label+'</text>';
+    return seg;
   }
-  // 5° 短刻度,不標數字——真實 G1000 在 10° 主刻度中間還有一條沒有字的短線
+  for(d=10; d<=20; d+=10){
+    var yUp=-d*CFG.pxPerDeg, yDn=d*CFG.pxPerDeg, half=(d===10?35:50);
+    g+=bar(yUp,half,d)+bar(yDn,half,d);
+  }
+  // 5°/15° 短刻度,不標數字、不留缺口(太短用不到)
   [-5,5,-15,15].forEach(function(d){
     var y=-d*CFG.pxPerDeg;
-    g+='<line x1="-24" y1="'+y+'" x2="24" y2="'+y+'" stroke="#fff" stroke-width="1.3"/>';
+    g+='<line x1="-20" y1="'+y+'" x2="20" y2="'+y+'" stroke="#fff" stroke-width="1.3"/>';
   });
   return g;
 }
@@ -138,31 +146,43 @@ function aiSVG(state){
     '<rect x="0" y="0" width="240" height="240" fill="#0B0F12"/>'+
     '<g clip-path="url(#aiFace)">'+
       '<g transform="translate(120 120) rotate('+(-state.roll)+') translate(0 '+ty.toFixed(1)+')">'+
-        '<rect x="-200" y="-480" width="640" height="480" fill="#1B5FA8"/>'+          // 天空
-        '<rect x="-200" y="0" width="640" height="480" fill="#7B5230"/>'+             // 地面
+        '<rect x="-200" y="-480" width="640" height="480" fill="#155FC4"/>'+          // 天空
+        '<rect x="-200" y="0" width="640" height="480" fill="#3B2415"/>'+             // 地面
         '<line x1="-200" y1="0" x2="440" y2="0" stroke="#fff" stroke-width="2.5"/>'+  // 天地線
         ladderSVG()+
       '</g>'+
     '</g>'+
-    '<rect x="1" y="1" width="238" height="238" fill="none" stroke="#4A5359" stroke-width="2"/>'+
-    // 固定的機身參考符號(G1000 風格:兩片直的「小翅膀」從中央缺口向外、向下斜張,
-    // 形狀像中文的「八」字,不是先平後彎的鉤子。黑色描邊,不跟著轉,永遠代表飛機本身。)
-    '<g stroke-linecap="round">'+
-      '<line x1="102" y1="117" x2="70" y2="132" stroke="#000" stroke-width="8"/>'+
-      '<line x1="138" y1="117" x2="170" y2="132" stroke="#000" stroke-width="8"/>'+
-      '<line x1="102" y1="117" x2="70" y2="132" stroke="#FFD400" stroke-width="5"/>'+
-      '<line x1="138" y1="117" x2="170" y2="132" stroke="#FFD400" stroke-width="5"/>'+
+    '<rect x="1" y="1" width="238" height="238" fill="none" stroke="#4A5359" stroke-width="1.5"/>'+
+    // 兩側黃色短橫桿(照截圖上水平線兩側的黃色標記),不跟著轉,固定在天地線高度稍下方
+    '<g fill="#F4C542">'+
+      '<rect x="24" y="118" width="30" height="7"/>'+
+      '<rect x="186" y="118" width="30" height="7"/>'+
     '</g>'+
-    '<circle cx="120" cy="120" r="3.5" fill="#FFD400" stroke="#000" stroke-width="1.5"/>'+
+    // 固定的機身參考符號:白色、黑色描邊,中央有缺口,兩片機翼從中央向外微微
+    // 上揚——照使用者給的模擬器截圖描的,不是黃色、也不是往下斜張的「八」字。
+    '<g stroke-linecap="round">'+
+      '<polyline points="106,124 90,124 76,118" fill="none" stroke="#000" stroke-width="7"/>'+
+      '<polyline points="134,124 150,124 164,118" fill="none" stroke="#000" stroke-width="7"/>'+
+      '<polyline points="106,124 90,124 76,118" fill="none" stroke="#fff" stroke-width="4"/>'+
+      '<polyline points="134,124 150,124 164,118" fill="none" stroke="#fff" stroke-width="4"/>'+
+      '<line x1="120" y1="120" x2="120" y2="130" stroke="#000" stroke-width="6"/>'+
+      '<line x1="120" y1="120" x2="120" y2="130" stroke="#fff" stroke-width="3"/>'+
+    '</g>'+
     // roll 指標(prototype 固定在正上方,之後 roll 有值時繞著轉)、固定的傾角刻度弧線——
-    // 這一段本來就是彎的,是 G1000 真機的樣子,不是把整個儀表做成圓形
-    '<polygon points="120,26 114,38 126,38" fill="#fff"/>'+
-    '<g stroke="#fff" stroke-width="1.5">'+
-      '<line x1="61.6" y1="49.7" x2="66.4" y2="57.9"/>'+   // -30°
-      '<line x1="178.4" y1="49.7" x2="173.6" y2="57.9"/>'+ // +30°
-      '<line x1="35" y1="90" x2="41.7" y2="94"/>'+          // -60°
-      '<line x1="205" y1="90" x2="198.3" y2="94"/>'+        // +60°
+    // 這一段本來就是彎的,是真機的樣子,不是把整個儀表做成圓形。刻度比照截圖加密。
+    '<polygon points="120,24 114,36 126,36" fill="#fff"/>'+
+    '<g stroke="#fff" stroke-width="1.3">'+
+      rollTick(10)+rollTick(-10)+rollTick(20)+rollTick(-20)+
+      rollTick(30)+rollTick(-30)+rollTick(45)+rollTick(-45)+rollTick(60)+rollTick(-60)+
     '</g>';
+}
+
+// 傾角刻度:繞面板中心(120,120)、半徑 90 的弧線上,在 bank 角度處畫一小段放射狀短線。
+function rollTick(bankDeg){
+  var r1=90,r2=(Math.abs(bankDeg)%30===0?80:84),a=bankDeg*D;
+  var x1=120+r1*Math.sin(a), y1=120-r1*Math.cos(a);
+  var x2=120+r2*Math.sin(a), y2=120-r2*Math.cos(a);
+  return '<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'"/>';
 }
 
 // 高度帶:仿 G1000 的捲動式數字帶,中央黑框顯示目前高度,刻度隨高度捲動。
