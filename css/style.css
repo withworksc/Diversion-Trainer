@@ -53,6 +53,23 @@ label.inline{font-size:13px;color:var(--ink-soft);display:flex;align-items:cente
 .cols{display:grid;grid-template-columns:400px 1fr;gap:26px;align-items:start}
 @media(max-width:920px){.cols{grid-template-columns:1fr}}
 
+.leftcol{display:flex;flex-direction:column;gap:16px}
+
+/* 姿態訓練(prototype)——跟 .brief 同一個視覺語言,但用點虛線邊框跟正式內容區隔開 */
+.attitude{border:2px dashed var(--rule-hard);background:var(--paper-2)}
+.attitude h2{
+  margin:0;font-size:12px;font-weight:700;letter-spacing:.09em;
+  background:var(--ink-soft);color:#F4F0E4;padding:6px 11px;
+}
+.attitude h2 .beta{font-weight:400;opacity:.75;margin-left:6px}
+#aiHost{padding:14px;display:flex;justify-content:center;background:#0B0F12;overflow-x:auto}
+#aiHost svg{width:100%;max-width:340px;height:auto;display:block}
+.ai-note{margin:0;padding:9px 12px;font-size:12px;color:var(--ink-soft);line-height:1.6}
+.ghost-toggle[aria-pressed="true"]{background:var(--accent);color:#F4F0E4;border-color:var(--accent)}
+
+/* prototype 限定桌面/平板——手機版本來就緊繃,先不塞這個 */
+@media(max-width:920px){#attToggle,.attitude{display:none}}
+
 /* scenario block — styled after a VFR chart aerodrome data box */
 .brief{border:2px solid var(--accent);background:var(--paper-2)}
 .mapwrap{position:relative;width:100%;aspect-ratio:376/436;overflow:hidden;

@@ -28,10 +28,18 @@
       <option value="RCYU">RCYU 花蓮</option>
     </select>
   </label>
+  <button id="attToggle" class="ghost ghost-toggle" aria-pressed="false">姿態訓練（prototype）</button>
 </div>
 
 <div class="cols">
-  <section class="brief" id="brief"></section>
+  <div class="leftcol">
+    <section class="brief" id="brief"></section>
+    <section class="attitude" id="attitude" hidden>
+      <h2>姿態訓練 <span class="beta">prototype</span></h2>
+      <div id="aiHost"></div>
+      <p class="ai-note" id="aiNote">出題後開始亂流，顯示答案或未接搖桿時指針停平。搖桿用左搖桿上下軸修正 pitch。</p>
+    </section>
+  </div>
   <section class="sheet" id="sheet"></section>
 </div>
 
@@ -46,6 +54,7 @@
 <script src="js/scenario.js"></script>
 <script src="js/map.js"></script>
 <script src="js/compute.js"></script>
+<script src="js/attitude.js"></script>
 <script src="js/ui.js"></script>
 </body>
 </html>
