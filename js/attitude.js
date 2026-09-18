@@ -19,7 +19,7 @@
 // 全部是拍腦袋的起始值，之後要接實體搖桿試飛感覺調——不是量出來的數字，跟 geo.js/data.js
 // 那些航圖量測值不是同一個等級的「事實」，純粹是遊戲感手感參數。
 var CFG = {
-  pxPerDeg: 3.2,        // 姿態儀畫面:每度 pitch 對應幾個 px
+  pxPerDeg: 3.6,        // 姿態儀畫面:每度 pitch 對應幾個 px
   pitchLimit: 25,       // deg,pitch 顯示上限(超過就是失控,先夾住不讓畫面爆開)
   springToTrim: 0.15,   // 1/s²,配平拉力:pitch 越偏離 0 越想被拉回去(模擬靜穩定性)
   idleSpring: 4.0,      // 沒在出題/開關關閉時,額外加這麼多拉力,讓指針很快歸零
@@ -113,74 +113,107 @@ function step(state,dt,input,active,rnd){
 // 天地線＋pitch ladder,畫在自己的局部座標系(0,0 = 姿態水平時的天地線),
 // 外層再用 translate(120,120) 搬到面板中心——不要把「120」寫進這個函式裡面,
 // 之前這裡的線跟外面固定的機身符號對不起來就是這個原因(局部/絕對座標混用)。
-// 三級刻度:2.5° 短、5°(含 15°)長、10°(含 20°)兩邊標數字——都在中間留缺口
-// (給機身符號站的地方),但不加端點,是照使用者的更正:「不會出現 tick end」。
+// 三級刻度,照使用者給的實機照片:
+//   2.5° 一格 → 最短、不標數字
+//   5°   一格 → 中等長度、不標數字
+//   10°  一格 → 最長、兩邊都標數字(10/20/30/40,每一條等長,不是越外面越長)
+// 線本身中間不會斷掉(不留缺口)、也不加端點——單純一條打通的橫線,飛機符號
+// 疊在最上層蓋過去就好(z-order 已經是符號在後畫,見 aiSVG),不需要靠留白閃開。
+// 文字加黑色描邊(paint-order=stroke)讓數字在天空藍/地面棕上都夠清楚。
+var LADDER = {major:29, mid:13, minor:8, labelGap:13};
+
 function ladderSVG(){
-  var g='',d;
-  function seg(y,inner,half){
-    return '<line x1="'+(-half)+'" y1="'+y+'" x2="'+(-inner)+'" y2="'+y+'"/>'+
-           '<line x1="'+inner+'" y1="'+y+'" x2="'+half+'" y2="'+y+'"/>';
+  var g='';
+  function line(y,half,w){
+    return '<line x1="'+(-half)+'" y1="'+y+'" x2="'+half+'" y2="'+y+'" stroke="#fff" stroke-width="'+w+'"/>';
   }
-  function major(y,half,label){
-    var s='<g stroke="#fff" stroke-width="2">'+seg(y,14,half)+'</g>';
-    s+='<text x="'+(-half-14)+'" y="'+(y+4)+'" font-size="11" fill="#fff" text-anchor="middle">'+label+'</text>'+
-       '<text x="'+(half+14)+'" y="'+(y+4)+'" font-size="11" fill="#fff" text-anchor="middle">'+label+'</text>';
-    return s;
+  function label(x,y,text){
+    return '<text x="'+x+'" y="'+(y+4.5)+'" font-size="13" font-weight="700" fill="#fff" '+
+      'stroke="#000" stroke-width="3" paint-order="stroke" text-anchor="middle">'+text+'</text>';
   }
-  function minor(y,half){
-    return '<g stroke="#fff" stroke-width="1.3">'+seg(y,6,half)+'</g>';
+  // 2.5° 一格畫到 40°;超出面板的會被 clip 掉,不用另外判斷
+  for(var i=1;i<=16;i++){
+    var d=i*2.5, up=-d*CFG.pxPerDeg, dn=d*CFG.pxPerDeg;
+    if(d%10===0){
+      var x=LADDER.major+LADDER.labelGap;
+      g+=line(up,LADDER.major,2.2)+label(-x,up,d)+label(x,up,d)+
+         line(dn,LADDER.major,2.2)+label(-x,dn,d)+label(x,dn,d);
+    }else if(d%5===0){
+      g+=line(up,LADDER.mid,1.6)+line(dn,LADDER.mid,1.6);
+    }else{
+      g+=line(up,LADDER.minor,1.4)+line(dn,LADDER.minor,1.4);
+    }
   }
-  for(d=10; d<=20; d+=10){
-    var half=(d===10?35:50);
-    g+=major(-d*CFG.pxPerDeg,half,d)+major(d*CFG.pxPerDeg,half,d);
-  }
-  [5,15,-5,-15].forEach(function(d){ g+=minor(-d*CFG.pxPerDeg,22) });   // 5°/15°,較長
-  [2.5,7.5,12.5,17.5,-2.5,-7.5,-12.5,-17.5].forEach(function(d){ g+=minor(-d*CFG.pxPerDeg,16) }); // 2.5° 一格,短
+  return g;
+}
+
+// 傾角刻度(bank scale):繞姿態中心 (120,120)、半徑 ROLL.r 的一段實線弧,±60°,
+// 刻度往外放射。這是照使用者給的實機照片重畫的:弧線是連續的一條、刻度沒有數字,
+// 30°/60° 比 10°/20°/45° 長。頂點上方的實心倒三角形是固定的 0° 基準,
+// 下方的實心正三角形 + 小橫條是 roll 指標與側滑指示,roll 有值時會沿著弧線移動。
+var ROLL = {cx:120, cy:120, r:100, ticks:[[10,7],[20,7],[30,12],[45,7],[60,12]]};
+
+function rollPt(deg,r){
+  var a=deg*D;
+  return [ROLL.cx+r*Math.sin(a), ROLL.cy-r*Math.cos(a)];
+}
+
+function rollScaleSVG(state){
+  var s=rollPt(-60,ROLL.r), e=rollPt(60,ROLL.r);
+  var g='<path d="M'+s[0].toFixed(1)+' '+s[1].toFixed(1)+' A'+ROLL.r+' '+ROLL.r+' 0 0 1 '+
+        e[0].toFixed(1)+' '+e[1].toFixed(1)+'" fill="none" stroke="#fff" stroke-width="2"/>';
+  ROLL.ticks.forEach(function(t){
+    [t[0],-t[0]].forEach(function(deg){
+      var a=rollPt(deg,ROLL.r), b=rollPt(deg,ROLL.r+t[1]);
+      g+='<line x1="'+a[0].toFixed(1)+'" y1="'+a[1].toFixed(1)+'" x2="'+b[0].toFixed(1)+
+         '" y2="'+b[1].toFixed(1)+'" stroke="#fff" stroke-width="2"/>';
+    });
+  });
+  var top=ROLL.cy-ROLL.r;                     // 弧線頂點 y
+  // 固定的 0° 基準:實心倒三角形,尖端頂在弧頂
+  g+='<polygon points="113,'+(top-12)+' 127,'+(top-12)+' 120,'+top+'" fill="#fff"/>';
+  // roll 指標 + 側滑指示:roll 恆為 0 時剛好在正上方。轉的方向(跟機身還是跟地平線)
+  // 等真的接上 roll 軸時要拿真機/模擬器確認,現在 roll=0 兩種畫法看起來一樣。
+  g+='<g transform="rotate('+state.roll+' '+ROLL.cx+' '+ROLL.cy+')">'+
+       '<polygon points="120,'+(top+2)+' 113,'+(top+13)+' 127,'+(top+13)+'" fill="#fff"/>'+
+       '<polygon points="114,'+(top+15)+' 126,'+(top+15)+' 124,'+(top+19)+' 116,'+(top+19)+'" fill="#fff"/>'+
+     '</g>';
   return g;
 }
 
 function aiSVG(state){
   var ty = clamp(state.pitch,-CFG.pitchLimit,CFG.pitchLimit)*CFG.pxPerDeg;
+  var horizon='<g transform="translate(120 120) rotate('+(-state.roll)+') translate(0 '+ty.toFixed(1)+')">';
   return ''+
     '<rect x="0" y="0" width="240" height="240" fill="#0B0F12"/>'+
     '<g clip-path="url(#aiFace)">'+
-      '<g transform="translate(120 120) rotate('+(-state.roll)+') translate(0 '+ty.toFixed(1)+')">'+
+      horizon+
         '<rect x="-200" y="-480" width="640" height="480" fill="#155FC4"/>'+          // 天空
         '<rect x="-200" y="0" width="640" height="480" fill="#3B2415"/>'+             // 地面
         '<line x1="-200" y1="0" x2="440" y2="0" stroke="#fff" stroke-width="2.5"/>'+  // 天地線
-        ladderSVG()+
+      '</g>'+
+      // pitch 刻度另外再套一層「面板座標系」的 clip:上緣切在 roll 刻度那一組的下面,
+      // 所以不管 pitch 怎麼飄(±25° 會讓整條 ladder 上下移動 ±90px),刻度線都不可能
+      // 爬進 bank 指標的範圍——這是 QC 抓到的真問題(pitch −2° 到 −25° 之間會疊到)
+      // 的根本解法,不是把 roll 刻度縮小硬閃。真機也是這樣:ladder 到某個高度就切掉。
+      '<g clip-path="url(#ladderClip)">'+
+        horizon+ladderSVG()+'</g>'+
       '</g>'+
     '</g>'+
     '<rect x="1" y="1" width="238" height="238" fill="none" stroke="#4A5359" stroke-width="1.5"/>'+
-    // 兩側黃色短橫桿:高度對齊機身符號尖端(y=111),寬度比原本窄——使用者更正過
-    '<g fill="#F4C542">'+
-      '<rect x="31" y="108" width="16" height="6"/>'+
-      '<rect x="193" y="108" width="16" height="6"/>'+
+    rollScaleSVG(state)+
+    // 兩側黃色短橫桿:對齊機身符號的尖端高度(y=120,也就是姿態中心)——使用者更正過
+    // 兩次,對齊的是尖端,不是翼尖。圓角、有深色描邊,照實機照片。
+    '<g fill="#F4C542" stroke="#6B5A12" stroke-width="1">'+
+      '<rect x="16" y="117.5" width="26" height="5" rx="2.5"/>'+
+      '<rect x="198" y="117.5" width="26" height="5" rx="2.5"/>'+
     '</g>'+
-    // 固定的機身參考符號:兩片實心三角形「刀刃」,尖端在中央上方幾乎碰在一起,
-    // 往外、往下斜張開——照使用者手繪的形狀描的,不是描邊的線條或海鷗翼弧線。
-    // 黃色是照第一張 G1000 實機照片的顏色,黑色描邊讓它在天空/地面背景上都看得清楚。
-    '<g stroke="#000" stroke-width="1.5" stroke-linejoin="round" fill="#FFD400">'+
-      '<polygon points="118,111 100,127 72,131"/>'+
-      '<polygon points="122,111 140,127 168,131"/>'+
-    '</g>'+
-    // roll 指標(prototype 固定在正上方,之後 roll 有值時繞著轉)、固定的傾角刻度弧線——
-    // 這一段本來就是彎的,是真機的樣子,不是把整個儀表做成圓形。整組再往上移一點,
-    // 跟 pitch 刻度(尤其 ±10°/±20° 那兩條)之間留出空隙,兩者不要疊在一起。
-    '<polygon points="120,14 115,25 125,25" fill="#fff"/>'+
-    '<g stroke="#fff" stroke-width="1.3">'+
-      rollTick(10)+rollTick(-10)+rollTick(20)+rollTick(-20)+
-      rollTick(30)+rollTick(-30)+rollTick(45)+rollTick(-45)+rollTick(60)+rollTick(-60)+
+    // 固定的機身參考符號:兩片實心三角形「刀刃」,尖端就在姿態中心 (120,120)——
+    // 也就是讀 pitch 的基準點,往外、往下斜張開。照使用者手繪 + 實機照片。
+    '<g stroke="#000" stroke-width="2.2" stroke-linejoin="round" fill="#FFD400">'+
+      '<polygon points="120,120 51,144 97,144"/>'+
+      '<polygon points="120,120 189,144 143,144"/>'+
     '</g>';
-}
-
-// 傾角刻度:弧心刻意設在面板中心正上方(120,95),不是跟 pitch 刻度共用的 (120,120)——
-// 半徑也縮小——這樣整組刻度會貼著面板上緣,跟下面的 pitch 刻度分開,不會疊在一起。
-function rollTick(bankDeg){
-  var cy=95, r1=62, r2=(Math.abs(bankDeg)%30===0?52:56), a=bankDeg*D;
-  var x1=120+r1*Math.sin(a), y1=cy-r1*Math.cos(a);
-  var x2=120+r2*Math.sin(a), y2=cy-r2*Math.cos(a);
-  return '<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'"/>';
 }
 
 // 高度帶:仿 G1000 的捲動式數字帶,中央黑框顯示目前高度,刻度隨高度捲動。
@@ -197,8 +230,11 @@ function altTapeSVG(state){
     // 跳過離中央讀數框太近的刻度數字,不然剛好整百時會跟中央框裡的數字疊在一起
     if(major && Math.abs(y-cy)>16) g+='<text x="'+(X+W-20)+'" y="'+(y+4).toFixed(1)+'" font-size="12" fill="#fff" text-anchor="end">'+a+'</text>';
   }
-  g+='<polygon points="'+X+','+(cy-11)+' '+(X+10)+','+(cy-11)+' '+(X+18)+','+cy+' '+(X+10)+','+(cy+11)+' '+X+','+(cy+11)+'" fill="#0B0F12" stroke="#fff" stroke-width="1.5"/>'+
-     '<text x="'+(X+9)+'" y="'+(cy+4)+'" font-size="13" fill="#fff" text-anchor="middle">'+Math.round(state.alt)+'</text>';
+  // 中央讀數框:框要夠寬才放得下四位數的高度——原本只有 18px 寬,數字整個滿出來,
+  // 這是渲染出來才看到的。左邊留一個尖角指著刻度,右邊到帶子邊緣。
+  g+='<polygon points="'+X+','+cy+' '+(X+9)+','+(cy-11)+' '+(X+W)+','+(cy-11)+' '+
+     (X+W)+','+(cy+11)+' '+(X+9)+','+(cy+11)+'" fill="#0B0F12" stroke="#fff" stroke-width="1.5"/>'+
+     '<text x="'+(X+W-4)+'" y="'+(cy+4.5)+'" font-size="13" font-weight="700" fill="#fff" text-anchor="end">'+Math.round(state.alt)+'</text>';
   return g;
 }
 
@@ -222,7 +258,11 @@ function vsiSVG(state){
 
 function renderSVG(state){
   return '<svg viewBox="0 0 340 240" role="img" aria-label="姿態儀與高度帶(prototype)">'+
-    '<defs><clipPath id="aiFace"><rect x="0" y="0" width="240" height="240"/></clipPath></defs>'+
+    '<defs>'+
+      '<clipPath id="aiFace"><rect x="0" y="0" width="240" height="240"/></clipPath>'+
+      // pitch 刻度的上緣:切在 roll 指標那一組(弧頂 y=20、指標與側滑條到 y=39)下面
+      '<clipPath id="ladderClip"><rect x="0" y="42" width="240" height="198"/></clipPath>'+
+    '</defs>'+
     aiSVG(state)+altTapeSVG(state)+vsiSVG(state)+
   '</svg>';
 }
