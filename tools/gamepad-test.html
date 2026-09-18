@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>搖桿偵測測試</title>
+<style>
+body{font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;background:#111;color:#eee;
+  margin:0;padding:24px;max-width:900px}
+h1{font-size:18px;margin:0 0 4px}
+.hint{color:#9ab;font-size:13px;margin-bottom:18px;line-height:1.7}
+.box{background:#0a0a0a;border:1px solid #333;border-radius:4px;padding:14px;margin-bottom:14px}
+.big{font-size:20px;font-weight:700}
+.ok{color:#5dd55d}.bad{color:#ff6b6b}.warn{color:#ffc857}
+.axis{display:flex;align-items:center;gap:10px;margin:3px 0}
+.axis .n{width:52px;color:#9ab}
+.bar{flex:1;height:12px;background:#222;position:relative;border-radius:2px}
+.bar i{position:absolute;top:0;bottom:0;background:#5dd55d;border-radius:2px}
+.v{width:60px;text-align:right}
+button{font:inherit;background:#245;color:#fff;border:1px solid #479;padding:8px 16px;
+  border-radius:4px;cursor:pointer}
+</style>
+</head>
+<body>
+<h1>搖桿偵測測試</h1>
+<div class="hint">
+這一頁跟主工具完全無關，只是把瀏覽器回報的原始搖桿資料印出來，用來確認問題出在哪一層。<br>
+<b>重要：瀏覽器在你「按過搖桿上的任一按鈕」之前，不會把搖桿交出來</b>（防指紋追蹤的規定）。<br>
+只推桿不按按鈕 → 會一直顯示沒偵測到。請先<b>按一下扳機或任何一顆按鈕</b>。<br>
+另外這個分頁必須是<b>作用中的視窗</b>（先用滑鼠點一下頁面空白處）。
+</div>
+
+<div class="box">
+  <div>瀏覽器支援 Gamepad API：<span id="support" class="big"></span></div>
+  <div>安全內容 (secure context)：<span id="secure"></span></div>
+  <div>網址協定：<span id="proto"></span></div>
+  <div>頁面是否有焦點：<span id="focus"></span></div>
+  <div>gamepadconnected 事件：<span id="evt">還沒收到</span></div>
+</div>
+
+<div class="box">
+  <button id="poke">我按過搖桿按鈕了，重新偵測</button>
+</div>
+
+<div class="box">
+  <div>偵測到的裝置數：<span id="count" class="big"></span></div>
+  <div id="pads"></div>
+</div>
+
+<script>
+var $=function(id){return document.getElementById(id)};
+$('support').innerHTML = navigator.getGamepads
+  ? '<span class="ok">有</span>' : '<span class="bad">沒有</span>';
+$('secure').innerHTML = window.isSecureContext
+  ? '<span class="ok">是</span>' : '<span class="warn">否 —— 某些瀏覽器會因此擋掉搖桿</span>';
+$('proto').textContent = location.protocol + '  (' + location.href.slice(0,60) + ')';
+
+window.addEventListener('gamepadconnected', function(e){
+  $('evt').innerHTML = '<span class="ok">收到！'+e.gamepad.id+'</span>';
+});
+window.addEventListener('gamepaddisconnected', function(){
+  $('evt').innerHTML = '<span class="warn">裝置已拔除</span>';
+});
+$('poke').addEventListener('click', function(){ /* 使用者手勢,某些瀏覽器需要 */ });
+
+function draw(){
+  $('focus').innerHTML = document.hasFocus()
+    ? '<span class="ok">有</span>' : '<span class="bad">沒有 —— 先點一下這個頁面</span>';
+
+  var raw = navigator.getGamepads ? navigator.getGamepads() : [];
+  var pads = [];
+  for(var i=0;i<raw.length;i++) if(raw[i]) pads.push(raw[i]);
+
+  $('count').innerHTML = pads.length
+    ? '<span class="ok">'+pads.length+'</span>'
+    : '<span class="bad">0</span>　(getGamepads() 陣列長度 '+raw.length+'，內容都是 null)';
+
+  var h='';
+  pads.forEach(function(gp){
+    h += '<div style="margin-top:14px"><b>'+gp.id+'</b><br>'+
+         'index '+gp.index+'　mapping "'+gp.mapping+'"　'+
+         gp.axes.length+' 軸　'+gp.buttons.length+' 鍵</div>';
+    gp.axes.forEach(function(v,i){
+      var pct=(v+1)/2*100, w=Math.abs(v)*50;
+      h += '<div class="axis"><span class="n">ax'+i+'</span>'+
+           '<span class="bar"><i style="left:'+(v<0?50-w:50)+'%;width:'+w+'%"></i></span>'+
+           '<span class="v">'+v.toFixed(3)+'</span></div>';
+    });
+    var pressed=[];
+    gp.buttons.forEach(function(b,i){ if(b.pressed) pressed.push(i) });
+    h += '<div style="color:#9ab">按下的鍵：'+(pressed.length?pressed.join(', '):'（無）')+'</div>';
+  });
+  $('pads').innerHTML = h;
+  requestAnimationFrame(draw);
+}
+draw();
+</script>
+</body>
+</html>

@@ -84,18 +84,30 @@ var aiHost=document.getElementById('aiHost'), attToggle=document.getElementById(
 // 注意瀏覽器的規則:Gamepad API 在「使用者按過搖桿上的按鈕」之前不會把裝置吐出來
 // (防指紋追蹤)。只推搖桿、不按按鈕的話 getGamepads() 會一直是空的——所以下面
 // 會把偵測狀態顯示出來,不要讓人以為是程式壞了。
+// 選裝置:HOTAS 常常是「搖桿本體」跟「油門座」兩個獨立的 USB 裝置,瀏覽器會列成兩台。
+// 只抓第一個有 2 軸的會抓到油門座(它軸更多、而且常常排在前面),推桿就沒反應。
+// 所以先挑名字看起來像搖桿的,其次才退回第一個可用的。
+function pickPad(pads){
+  var fallback=null,i,gp,id;
+  for(i=0;i<pads.length;i++){
+    gp=pads[i];
+    if(!gp||!gp.axes||gp.axes.length<2) continue;
+    id=(gp.id||'').toLowerCase();
+    if(/throttle|rudder|pedal/.test(id)) continue;              // 明顯不是拿來控姿態的
+    if(/joystick|stick|flight|warthog|t\.16000|sidewinder/.test(id)) return gp;
+    if(!fallback) fallback=gp;
+  }
+  return fallback;
+}
+
 var padInfo=null;   // {id, axes:[…]},沒抓到就是 null
 function readPad(){
   var pads=(navigator.getGamepads&&navigator.getGamepads())||[];
-  for(var i=0;i<pads.length;i++){
-    var gp=pads[i];
-    if(!gp||!gp.axes||gp.axes.length<2) continue;
-    padInfo={id:gp.id, axes:Array.prototype.slice.call(gp.axes)};
-    return {pitch:Attitude.applyDeadzone(gp.axes[1]),
-            roll: Attitude.applyDeadzone(gp.axes[0])};
-  }
-  padInfo=null;
-  return null;
+  var gp=pickPad(pads);
+  if(!gp){ padInfo=null; return null; }
+  padInfo={id:gp.id, axes:Array.prototype.slice.call(gp.axes)};
+  return {pitch:Attitude.applyDeadzone(gp.axes[1]),
+          roll: Attitude.applyDeadzone(gp.axes[0])};
 }
 
 // 鍵盤代打:只在開關開著時攔截方向鍵,不然會擋到頁面正常捲動
