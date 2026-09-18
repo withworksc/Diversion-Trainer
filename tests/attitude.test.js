@@ -45,6 +45,27 @@ test('step:沒在出題(active=false)時,亂流跟指針都會自己收斂回水
   assert.ok(Math.abs(s.gust)<0.5,`20 秒後 gust=${s.gust}`);
 });
 
+test('step:停止(active=false)時是臨界阻尼,指針不會盪過水平再盪回來',()=>{
+  // 迴歸測試:idleSpring 調大卻沿用原本的 damping 會變成嚴重欠阻尼,
+  // 按「顯示答案」之後指針會像單擺一樣來回盪十幾秒才停。
+  const r=rng(7);
+  let s={pitch:17,rate:0,gust:0,roll:0,heading:0,alt:2000,vs:0};
+  let minPitch=17;
+  for(let i=0;i<200;i++){            // 10 秒
+    s=Attitude.step(s,0.05,0,false,r);
+    minPitch=Math.min(minPitch,s.pitch);
+  }
+  assert.ok(minPitch>-0.5,`不該過衝到負的,實際最低 ${minPitch.toFixed(2)}°`);
+  assert.ok(Math.abs(s.pitch)<0.5,`10 秒後應該停平,實際 ${s.pitch.toFixed(2)}°`);
+});
+
+test('step:停止後 3 秒內就要大致回到水平(不能慢慢飄)',()=>{
+  const r=rng(8);
+  let s={pitch:20,rate:0,gust:0,roll:0,heading:0,alt:2000,vs:0};
+  for(let i=0;i<60;i++) s=Attitude.step(s,0.05,0,false,r);   // 3 秒
+  assert.ok(Math.abs(s.pitch)<2,`3 秒後 pitch=${s.pitch.toFixed(2)}°,應該已經接近水平`);
+});
+
 test('step:出題中(active=true)、輸入為 0 時,亂流會讓 pitch 偏離 0(不是死水一灘)',()=>{
   const r=rng(2);
   let s=Attitude.initialState();

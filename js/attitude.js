@@ -89,9 +89,15 @@ function step(state,dt,input,active,rnd){
   }
 
   var spring = CFG.springToTrim + (active?0:CFG.idleSpring);
+  // 阻尼要跟回正力配對:這是彈簧系統,阻尼比 ζ = damping/(2√spring)。
+  // 出題中 spring=0.15、damping=0.8 → ζ≈1.03,剛好臨界阻尼,飄動看起來是平順的漫遊。
+  // 停止時把 spring 加到 4.15 卻沿用 damping=0.8 的話 ζ 只剩 0.2,是嚴重欠阻尼——
+  // 指針會像單擺一樣盪過水平再盪回來,要十幾秒才停。所以閒置時改用臨界阻尼 2√spring,
+  // 指針直接、不過衝地回到水平。(這是實際按「顯示答案」測出來才發現的)
+  var damping = active ? CFG.damping : 2*Math.sqrt(spring);
   var accel = (active?s.gust:0) - s.pitch*spring + ctl*CFG.controlGain;
   s.rate += accel*dt;
-  s.rate *= Math.max(0, 1-CFG.damping*dt);
+  s.rate *= Math.max(0, 1-damping*dt);
   var pitchNext = s.pitch+s.rate*dt;
   // 撞到上下限時把角速度也夾住(anti-windup):不然桿子頂在限制上時 rate 會繼續累積,
   // 之後往回修正還要先把這股累積的速度耗掉才會真的開始回頭,手感會覺得「卡住」。
@@ -205,14 +211,18 @@ function aiSVG(state){
     // 兩側黃色短橫桿:對齊機身符號的尖端高度(y=120,也就是姿態中心)——使用者更正過
     // 兩次,對齊的是尖端,不是翼尖。圓角、有深色描邊,照實機照片。
     '<g fill="#F4C542" stroke="#6B5A12" stroke-width="1">'+
-      '<rect x="16" y="117.5" width="26" height="5" rx="2.5"/>'+
-      '<rect x="198" y="117.5" width="26" height="5" rx="2.5"/>'+
+      '<rect x="5" y="117.5" width="26" height="5" rx="2.5"/>'+
+      '<rect x="209" y="117.5" width="26" height="5" rx="2.5"/>'+
     '</g>'+
-    // 固定的機身參考符號:兩片實心三角形「刀刃」,尖端就在姿態中心 (120,120)——
-    // 也就是讀 pitch 的基準點,往外、往下斜張開。照使用者手繪 + 實機照片。
-    '<g stroke="#000" stroke-width="2.2" stroke-linejoin="round" fill="#FFD400">'+
-      '<polygon points="120,120 51,144 97,144"/>'+
-      '<polygon points="120,120 189,144 143,144"/>'+
+    // 固定的機身參考符號:兩片很薄的實心三角形「刀刃」,尖端就在姿態中心 (120,120)——
+    // 也就是讀 pitch 的基準點,往外、往下斜張開。比例是照實機照片量的:
+    //   翼展(尖端到翼尖)   = ladder 主刻度半長的 2.2 倍  → 72px
+    //   垂直落差            = 5° 的 pitch                 → 5×3.6 ≈ 18px
+    //   內側底點離尖端      = 翼展的 0.26 倍              → 19px(這個決定刀刃多薄)
+    // 描邊也收細一點,不然這麼薄的刀刃會被自己的黑邊吃掉。
+    '<g stroke="#000" stroke-width="1.8" stroke-linejoin="round" fill="#FFD400">'+
+      '<polygon points="120,120 48,138 101,138"/>'+
+      '<polygon points="120,120 192,138 139,138"/>'+
     '</g>';
 }
 
