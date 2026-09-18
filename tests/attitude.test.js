@@ -186,6 +186,42 @@ test('壓坡度不帶桿會掉高度(升力垂直分量變差)',()=>{
   assert.ok(vs(bank45)<vs(bank30),'45° 要比 30° 掉得更快');
 });
 
+describe('高度帶讀數框:百位以上大字 + 末兩位 20 ft 一格的數字鼓',()=>{
+  test('起始高度是 3000 ft(使用者指定),altitude bug 同一個值',()=>{
+    assert.equal(Attitude.CFG.altBaseline,3000);
+    assert.equal(Attitude.initialState().alt,3000);
+  });
+  test('3000 → 大字 30、數字鼓中心 3000',()=>{
+    const d=Attitude.altDigits(3000);
+    assert.equal(d.big,30); assert.equal(d.n20,3000);
+  });
+  test('2987 → 最接近的 20 ft 是 2980,大字 29(大字跟數字鼓用同一個中心,不會錯位)',()=>{
+    const d=Attitude.altDigits(2987);
+    assert.equal(d.n20,2980); assert.equal(d.big,29);
+  });
+  test('2991 → 進位到 3000,大字同時變 30',()=>{
+    const d=Attitude.altDigits(2991);
+    assert.equal(d.n20,3000); assert.equal(d.big,30);
+  });
+  test('負高度不會讓讀數壞掉(夾在 0)',()=>{
+    const d=Attitude.altDigits(-150);
+    assert.equal(d.big,0); assert.equal(d.n20,0);
+  });
+});
+
+describe('VSI 數值框:取到 50 fpm,|VS|<100 不顯示數字',()=>{
+  test('-1550 → "-1550"',()=>{ assert.equal(Attitude.vsReadout(-1550),'-1550'); });
+  test('1537 → "1550"(取到 50)',()=>{ assert.equal(Attitude.vsReadout(1537),'1550'); });
+  test('99 → 不顯示',()=>{ assert.equal(Attitude.vsReadout(99),null); });
+  test('-100 → "-100"',()=>{ assert.equal(Attitude.vsReadout(-100),'-100'); });
+  test('畫出來的 SVG 裡看得到 VS 數值與選定高度',()=>{
+    const s=Object.assign(Attitude.initialState(),{vs:-1550});
+    const svg=Attitude.renderSVG(s);
+    assert.match(svg,/>-1550</);
+    assert.match(svg,/>3000</);
+  });
+});
+
 test('resetAlt:高度重設回基準值,姿態(pitch/rate/gust)不變',()=>{
   const s={pitch:7,rate:1.2,gust:-2,roll:0,heading:0,alt:2345,vs:99};
   const r=Attitude.resetAlt(s);

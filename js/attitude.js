@@ -51,10 +51,26 @@ var CFG = {
   ktToFpm: 101.3,       // 1 kt 的下滑/爬升分量換算成 ft/min 的係數
   bankSinkFpm: 420,     // fpm,坡度造成的掉高係數:升力的垂直分量隨 1/cos(bank) 變差,
                         // 壓坡度不帶桿就會掉高——這正是這個練習要讓人有感的地方
-  altBaseline: 2000,    // ft,高度帶的參考起點(跟主工具的改降高度是兩回事,見檔頭註解)
-  altPxPerFt: 0.6,      // 高度帶:每英尺對應幾個 px
+  // 起始高度 3000 ft,altitude bug 也設在 3000(使用者指定)——學員要守的就是出題那一刻
+  // 的高度,所以 bug 跟起始高度是同一個值,不另外設。跟主工具的改降高度是兩回事。
+  altBaseline: 3000,
+  altPxPerFt: 0.36,     // 高度帶:每英尺幾 px。照實機照片的比例,帶子高度約看得到 ±270 ft
+  trendSec: 6,          // 洋紅趨勢線:顯示幾秒後會到的高度(G1000 是 6 秒)
   vsMax: 2000           // fpm,VSI 滿刻度
 };
+
+// 整張 PFD 的版面(viewBox 單位)。姿態儀本身是左邊 240×240 的正方形(中心 120,120);
+// 高度帶與 VSI 在右邊。跟 G1000 一樣,天空/地面一路延伸到高度帶底下,高度帶與 VSI
+// 是半透明的深色疊層、白色細框,不是另外一塊黑底——照使用者給的實機照片。
+// 各尺寸是照那張照片量的比例換算過來的。
+var PFD = {w:346, h:240};
+var ALT = {x:244, w:60, top:22, bot:218, cy:120,  // 高度帶本體(中心對齊姿態中心)
+           selTop:4, baroH:16,                    // 上方選定高度框、下方氣壓框
+           drumPxPerFt:0.9};                      // 讀數框裡捲動數字:每 20 ft 間隔 18px
+var VSI = {x0:304, x1:330, top:29, bot:210, cy:120,
+           pxPer1000:40,                          // 每 1000 fpm 幾 px(±2000 滿刻度)
+           notchApex:306, notchHalf:14.5};        // 右緣往內的 V 形缺口,尖端在 0 的位置
+var COLOR = {cyan:'#29E6E6', magenta:'#E040E0', tick:'#E8E8E8', label:'#D9D9D9', frame:'#CFCFCF'};
 CFG.pitchLimit = CFG.pitch.limit;   // 畫面與測試在用的簡寫
 
 function clamp(x,lo,hi){return Math.max(lo,Math.min(hi,x))}
@@ -228,13 +244,15 @@ function rollScaleSVG(state){
 function aiSVG(state){
   var ty = clamp(state.pitch,-CFG.pitchLimit,CFG.pitchLimit)*CFG.pxPerDeg;
   var horizon='<g transform="translate(120 120) rotate('+(-state.roll)+') translate(0 '+ty.toFixed(1)+')">';
+  // 天空/地面蓋滿整張 PFD(包括右邊高度帶底下),而且要夠大:姿態中心在 (120,120),
+  // 離它最遠的面板角落約 260px,坡度 60° 轉過去時也不能露出空白。
   return ''+
-    '<rect x="0" y="0" width="240" height="240" fill="#0B0F12"/>'+
+    '<rect x="0" y="0" width="'+PFD.w+'" height="'+PFD.h+'" fill="#0B0F12"/>'+
     '<g clip-path="url(#aiFace)">'+
       horizon+
-        '<rect x="-200" y="-480" width="640" height="480" fill="#155FC4"/>'+          // 天空
-        '<rect x="-200" y="0" width="640" height="480" fill="#3B2415"/>'+             // 地面
-        '<line x1="-200" y1="0" x2="440" y2="0" stroke="#fff" stroke-width="2.5"/>'+  // 天地線
+        '<rect x="-400" y="-600" width="800" height="600" fill="#155FC4"/>'+          // 天空
+        '<rect x="-400" y="0" width="800" height="600" fill="#3B2415"/>'+             // 地面
+        '<line x1="-400" y1="0" x2="400" y2="0" stroke="#fff" stroke-width="2.5"/>'+  // 天地線
       '</g>'+
       // pitch 刻度另外再套一層「面板座標系」的 clip:上緣切在 roll 刻度那一組的下面,
       // 所以不管 pitch 怎麼飄(±25° 會讓整條 ladder 上下移動 ±90px),刻度線都不可能
@@ -244,7 +262,7 @@ function aiSVG(state){
         horizon+ladderSVG()+'</g>'+
       '</g>'+
     '</g>'+
-    '<rect x="1" y="1" width="238" height="238" fill="none" stroke="#4A5359" stroke-width="1.5"/>'+
+    '<rect x="1" y="1" width="'+(PFD.w-2)+'" height="'+(PFD.h-2)+'" fill="none" stroke="#4A5359" stroke-width="1.5"/>'+
     rollScaleSVG(state)+
     // 兩側黃色短橫桿:對齊機身符號的尖端高度(y=120,也就是姿態中心)——使用者更正過
     // 兩次,對齊的是尖端,不是翼尖。圓角、有深色描邊,照實機照片。
@@ -266,57 +284,130 @@ function aiSVG(state){
     '</g>';
 }
 
-// 高度帶:仿 G1000 的捲動式數字帶,中央黑框顯示目前高度,刻度隨高度捲動。
+/* ---------- 高度帶 ---------- */
+// 仿 G1000,照使用者給的實機照片:
+//   · 帶子本體半透明、白色細框;刻度在左緣往右伸(100 ft 長、20 ft 短),數字靠左
+//   · 中央讀數框:左邊尖角指著刻度;百位以上用大字,末兩位是捲動的數字鼓(20 ft 一格)
+//   · 上方黑框:青色 altitude bug 圖示 + 選定高度;下方黑框:氣壓設定
+//   · 帶子左緣:青色 altitude bug 標在選定高度,超出可見範圍就停在帶子邊上
+//   · 帶子左緣:洋紅趨勢線,從目前高度畫到 trendSec 秒後會到的高度
 // 這個高度是姿態小遊戲自己的模擬值(見檔頭註解),不是主工具改降情境的高度。
-function altTapeSVG(state){
-  var X=246, W=68, H=240, cy=120, px=CFG.altPxPerFt;
-  var g='<rect x="'+X+'" y="0" width="'+W+'" height="'+H+'" fill="#0B0F12"/>'+
-    '<line x1="'+X+'" y1="0" x2="'+X+'" y2="'+H+'" stroke="#4A5359" stroke-width="1.5"/>';
-  var visFt = (H/2)/px + 20;
-  var lo=Math.ceil((state.alt-visFt)/20)*20, hi=Math.floor((state.alt+visFt)/20)*20, a;
-  for(a=lo; a<=hi; a+=20){
-    var y=cy-(a-state.alt)*px, major=(a%100===0);
-    g+='<line x1="'+(X+W-(major?16:9))+'" y1="'+y.toFixed(1)+'" x2="'+(X+W)+'" y2="'+y.toFixed(1)+'" stroke="#fff" stroke-width="1.3"/>';
-    // 跳過離中央讀數框太近的刻度數字,不然剛好整百時會跟中央框裡的數字疊在一起
-    if(major && Math.abs(y-cy)>16) g+='<text x="'+(X+W-20)+'" y="'+(y+4).toFixed(1)+'" font-size="12" fill="#fff" text-anchor="end">'+a+'</text>';
+
+// altitude bug:青色方塊,朝刻度那一側切一個 V 形缺口
+function bugSVG(x,y){
+  return '<polygon points="'+x+','+(y-5)+' '+(x+8)+','+(y-5)+' '+(x+8)+','+(y-2)+' '+(x+5)+','+y+' '+
+    (x+8)+','+(y+2)+' '+(x+8)+','+(y+5)+' '+x+','+(y+5)+'" fill="'+COLOR.cyan+'"/>';
+}
+
+// 讀數框的數字:末兩位取「最接近的 20 ft」為中心,上下各兩格一起捲;
+// 百位以上跟著同一個中心值,不會出現大字已經進位、數字鼓還沒到的錯位。
+function altDigits(alt){
+  var a=Math.max(0,alt), n20=Math.round(a/20)*20;
+  return {a:a, n20:n20, big:Math.floor(n20/100)};
+}
+
+function altReadoutSVG(alt){
+  var A=ALT, cy=A.cy, x1=A.x+A.w, d=altDigits(alt);
+  var tip=A.x+2.5, body=A.x+8, drumL=x1-21.5, drumR=x1-2;
+  var g='<polygon points="'+tip+','+cy+' '+body+','+(cy-12.5)+' '+drumL+','+(cy-12.5)+' '+
+      drumL+','+(cy-19)+' '+drumR+','+(cy-19)+' '+drumR+','+(cy+19)+' '+drumL+','+(cy+19)+' '+
+      drumL+','+(cy+12.5)+' '+body+','+(cy+12.5)+'" fill="#000"/>'+
+    '<text x="'+(drumL-1)+'" y="'+(cy+5)+'" font-size="14" font-weight="700" fill="#fff" '+
+      'text-anchor="end">'+d.big+'</text>'+
+    '<g clip-path="url(#drumClip)">';
+  for(var k=-2;k<=2;k++){
+    var v=d.n20+k*20, y=cy-(v-d.a)*A.drumPxPerFt;
+    g+='<text x="'+(drumR-1)+'" y="'+(y+4).toFixed(1)+'" font-size="11.5" font-weight="700" fill="#fff" '+
+       'text-anchor="end">'+('0'+(((v%100)+100)%100)).slice(-2)+'</text>';
   }
-  // 中央讀數框:框要夠寬才放得下四位數的高度——原本只有 18px 寬,數字整個滿出來,
-  // 這是渲染出來才看到的。左邊留一個尖角指著刻度,右邊到帶子邊緣。
-  g+='<polygon points="'+X+','+cy+' '+(X+9)+','+(cy-11)+' '+(X+W)+','+(cy-11)+' '+
-     (X+W)+','+(cy+11)+' '+(X+9)+','+(cy+11)+'" fill="#0B0F12" stroke="#fff" stroke-width="1.5"/>'+
-     '<text x="'+(X+W-4)+'" y="'+(cy+4.5)+'" font-size="13" font-weight="700" fill="#fff" text-anchor="end">'+Math.round(state.alt)+'</text>';
+  return g+'</g>';
+}
+
+function altTapeSVG(state){
+  var A=ALT, px=CFG.altPxPerFt, alt=state.alt, x0=A.x, h=A.bot-A.top;
+  var g='<rect x="'+x0+'" y="'+A.top+'" width="'+A.w+'" height="'+h+'" fill="#000" fill-opacity="0.32" '+
+        'stroke="'+COLOR.frame+'" stroke-width="1"/>'+
+        '<g clip-path="url(#altClip)">';
+  var visFt=(A.cy-A.top)/px+20;
+  for(var a=Math.ceil((alt-visFt)/20)*20; a<=alt+visFt; a+=20){
+    var y=A.cy-(a-alt)*px, major=(a%100===0);
+    g+='<line x1="'+x0+'" y1="'+y.toFixed(1)+'" x2="'+(x0+(major?9:5))+'" y2="'+y.toFixed(1)+'" '+
+       'stroke="'+COLOR.tick+'" stroke-width="1.2"/>';
+    if(major) g+='<text x="'+(x0+12)+'" y="'+(y+4).toFixed(1)+'" font-size="11" fill="'+COLOR.label+'">'+a+'</text>';
+  }
+  g+=bugSVG(x0, clamp(A.cy-(CFG.altBaseline-alt)*px, A.top+5, A.bot-5));
+  var trend=A.cy-(state.vs*CFG.trendSec/60)*px;
+  if(Math.abs(trend-A.cy)>1){
+    g+='<rect x="'+(x0+0.5)+'" y="'+Math.min(A.cy,trend).toFixed(1)+'" width="3" '+
+       'height="'+Math.abs(trend-A.cy).toFixed(1)+'" fill="'+COLOR.magenta+'"/>';
+  }
+  g+='</g>'+altReadoutSVG(alt);
+
+  // 上方選定高度框、下方氣壓框(氣壓固定 1013 hPa,照實機照片)
+  var sh=A.top-A.selTop;
+  g+='<rect x="'+x0+'" y="'+A.selTop+'" width="'+A.w+'" height="'+sh+'" fill="#000" stroke="'+COLOR.frame+'" stroke-width="1"/>'+
+     bugSVG(x0+3, A.selTop+sh/2)+
+     '<text x="'+(x0+A.w-3)+'" y="'+(A.selTop+sh/2+4.5)+'" font-size="13" font-weight="700" '+
+       'fill="'+COLOR.cyan+'" text-anchor="end">'+CFG.altBaseline+'</text>'+
+     '<rect x="'+x0+'" y="'+A.bot+'" width="'+A.w+'" height="'+A.baroH+'" fill="#000" stroke="'+COLOR.frame+'" stroke-width="1"/>'+
+     // 「1013」跟「HPA」分開各自定位:用兩個 tspan 靠 text-anchor 一起對齊,有的渲染器
+     // 只對齊第一段,HPA 會跑出框外(實際渲染出來才看到的)
+     '<text x="'+(x0+A.w-18)+'" y="'+(A.bot+A.baroH/2+4)+'" font-size="11" font-weight="700" '+
+       'fill="'+COLOR.cyan+'" text-anchor="end">1013</text>'+
+     '<text x="'+(x0+A.w-3)+'" y="'+(A.bot+A.baroH/2+4)+'" font-size="7.5" font-weight="700" '+
+       'fill="'+COLOR.cyan+'" text-anchor="end">HPA</text>';
   return g;
 }
 
-// VSI:中央 0、上climb/下descend 的簡單長條,指針位置對應目前爬升/下降率。
+/* ---------- VSI ---------- */
+// 照實機照片:半透明窄條、白色細框,右緣在 0 的位置往內切一個 V 形缺口;刻度在左緣,
+// ±1000/±2000 標 1、2,±500/±1500 是沒有字的短刻度。指針是黑底白框、尖角朝左的
+// 數值框,數值取到 50 fpm;|VS|<100 時跟 G1000 一樣只剩箭頭、不顯示數字。
+function vsReadout(vs){
+  return Math.abs(vs)>=100 ? String(Math.round(vs/50)*50) : null;
+}
+
 function vsiSVG(state){
-  var X=318, W=22, H=240, cy=120;
-  var vs=clamp(state.vs,-CFG.vsMax,CFG.vsMax), y=cy-(vs/CFG.vsMax)*100;
-  var g='<rect x="'+X+'" y="0" width="'+W+'" height="'+H+'" fill="#0B0F12"/>'+
-    '<line x1="'+X+'" y1="'+cy+'" x2="'+(X+W)+'" y2="'+cy+'" stroke="#4A5359" stroke-width="1.5"/>';
-  [500,1000,2000].forEach(function(v){
-    var yy=cy-(v/CFG.vsMax)*100;
-    g+='<line x1="'+X+'" y1="'+yy.toFixed(1)+'" x2="'+(X+6)+'" y2="'+yy.toFixed(1)+'" stroke="#fff" stroke-width="1"/>';
-    var yy2=cy+(v/CFG.vsMax)*100;
-    g+='<line x1="'+X+'" y1="'+yy2.toFixed(1)+'" x2="'+(X+6)+'" y2="'+yy2.toFixed(1)+'" stroke="#fff" stroke-width="1"/>';
+  var V=VSI, cy=V.cy, k=V.pxPer1000/1000;
+  var g='<path d="M'+V.x0+' '+V.top+' L'+V.x1+' '+V.top+' L'+V.x1+' '+(cy-V.notchHalf)+' L'+V.notchApex+' '+cy+
+        ' L'+V.x1+' '+(cy+V.notchHalf)+' L'+V.x1+' '+V.bot+' L'+V.x0+' '+V.bot+' Z" '+
+        'fill="#000" fill-opacity="0.32" stroke="'+COLOR.frame+'" stroke-width="1"/>';
+  [500,1000,1500,2000].forEach(function(v){
+    var major=(v%1000===0);
+    [cy-v*k, cy+v*k].forEach(function(y){
+      g+='<line x1="'+V.x0+'" y1="'+y+'" x2="'+(V.x0+(major?10:6))+'" y2="'+y+'" stroke="'+COLOR.tick+'" stroke-width="1.2"/>';
+      if(major) g+='<text x="'+(V.x0+18)+'" y="'+(y+3.5)+'" font-size="9.5" fill="'+COLOR.label+'" '+
+                   'text-anchor="middle">'+(v/1000)+'</text>';
+    });
   });
-  g+='<polygon points="'+X+','+y.toFixed(1)+' '+(X+14)+','+(y-6).toFixed(1)+' '+(X+14)+','+(y+6).toFixed(1)+'" fill="#00E03C"/>'+
-     '<text x="'+(X+11)+'" y="12" font-size="9" fill="#fff" text-anchor="middle">↑</text>'+
-     '<text x="'+(X+11)+'" y="234" font-size="9" fill="#fff" text-anchor="middle">↓</text>';
+  var y=(cy-clamp(state.vs,-CFG.vsMax,CFG.vsMax)*k).toFixed(1), ya=+y, label=vsReadout(state.vs);
+  if(label){
+    var x=V.notchApex, r=PFD.w-5;
+    g+='<polygon points="'+x+','+y+' '+(x+5)+','+(ya-6)+' '+r+','+(ya-6)+' '+r+','+(ya+6)+' '+(x+5)+','+(ya+6)+'" '+
+       'fill="#000" stroke="#fff" stroke-width="1"/>'+
+       '<text x="'+(r-2)+'" y="'+(ya+3.3).toFixed(1)+'" font-size="9" font-weight="700" fill="#fff" '+
+         'text-anchor="end">'+label+'</text>';
+  }else{
+    g+='<polygon points="'+V.notchApex+','+y+' '+(V.notchApex+7)+','+(ya-5)+' '+(V.notchApex+7)+','+(ya+5)+'" fill="#fff"/>';
+  }
   return g;
 }
 
 function renderSVG(state){
-  return '<svg viewBox="0 0 340 240" role="img" aria-label="姿態儀與高度帶(prototype)">'+
+  var drumX=ALT.x+ALT.w-21.5;
+  return '<svg viewBox="0 0 '+PFD.w+' '+PFD.h+'" role="img" aria-label="姿態儀與高度帶(prototype)" '+
+         'font-family="Helvetica Neue, Arial, sans-serif">'+
     '<defs>'+
-      '<clipPath id="aiFace"><rect x="0" y="0" width="240" height="240"/></clipPath>'+
+      '<clipPath id="aiFace"><rect x="0" y="0" width="'+PFD.w+'" height="'+PFD.h+'"/></clipPath>'+
       // pitch 刻度的上緣:切在 roll 指標那一組(弧頂 y=20、指標與側滑條到 y=39)下面
       '<clipPath id="ladderClip"><rect x="0" y="42" width="240" height="198"/></clipPath>'+
+      '<clipPath id="altClip"><rect x="'+ALT.x+'" y="'+ALT.top+'" width="'+ALT.w+'" height="'+(ALT.bot-ALT.top)+'"/></clipPath>'+
+      '<clipPath id="drumClip"><rect x="'+drumX+'" y="'+(ALT.cy-19)+'" width="19.5" height="38"/></clipPath>'+
     '</defs>'+
     aiSVG(state)+altTapeSVG(state)+vsiSVG(state)+
   '</svg>';
 }
 
 return {CFG:CFG, applyDeadzone:applyDeadzone, initialState:initialState, resetAlt:resetAlt,
-  vsFromPitch:vsFromPitch, step:step, renderSVG:renderSVG};
+  vsFromPitch:vsFromPitch, step:step, renderSVG:renderSVG, altDigits:altDigits, vsReadout:vsReadout};
 });
