@@ -158,15 +158,12 @@ function aiSVG(state){
       '<rect x="24" y="118" width="30" height="7"/>'+
       '<rect x="186" y="118" width="30" height="7"/>'+
     '</g>'+
-    // 固定的機身參考符號:白色、黑色描邊,中央有缺口,兩片機翼從中央向外微微
-    // 上揚——照使用者給的模擬器截圖描的,不是黃色、也不是往下斜張的「八」字。
-    '<g stroke-linecap="round">'+
-      '<polyline points="106,124 90,124 76,118" fill="none" stroke="#000" stroke-width="7"/>'+
-      '<polyline points="134,124 150,124 164,118" fill="none" stroke="#000" stroke-width="7"/>'+
-      '<polyline points="106,124 90,124 76,118" fill="none" stroke="#fff" stroke-width="4"/>'+
-      '<polyline points="134,124 150,124 164,118" fill="none" stroke="#fff" stroke-width="4"/>'+
-      '<line x1="120" y1="120" x2="120" y2="130" stroke="#000" stroke-width="6"/>'+
-      '<line x1="120" y1="120" x2="120" y2="130" stroke="#fff" stroke-width="3"/>'+
+    // 固定的機身參考符號:兩片實心三角形「刀刃」,尖端在中央上方幾乎碰在一起,
+    // 往外、往下斜張開——照使用者手繪的形狀描的,不是描邊的線條或海鷗翼弧線。
+    // 黃色是照第一張 G1000 實機照片的顏色,黑色描邊讓它在天空/地面背景上都看得清楚。
+    '<g stroke="#000" stroke-width="1.5" stroke-linejoin="round" fill="#FFD400">'+
+      '<polygon points="118,111 100,127 72,131"/>'+
+      '<polygon points="122,111 140,127 168,131"/>'+
     '</g>'+
     // roll 指標(prototype 固定在正上方,之後 roll 有值時繞著轉)、固定的傾角刻度弧線——
     // 這一段本來就是彎的,是真機的樣子,不是把整個儀表做成圓形。刻度比照截圖加密。
