@@ -113,30 +113,29 @@ function step(state,dt,input,active,rnd){
 // 天地線＋pitch ladder,畫在自己的局部座標系(0,0 = 姿態水平時的天地線),
 // 外層再用 translate(120,120) 搬到面板中心——不要把「120」寫進這個函式裡面,
 // 之前這裡的線跟外面固定的機身符號對不起來就是這個原因(局部/絕對座標混用)。
-// 每條刻度線中間留缺口(給機身符號站的地方),兩截的內外端都加短的垂直端點,
-// 樣子是「⊢── ──⊣」而不是一條打通的直線——照使用者給的模擬器截圖描的。
+// 三級刻度:2.5° 短、5°(含 15°)長、10°(含 20°)兩邊標數字——都在中間留缺口
+// (給機身符號站的地方),但不加端點,是照使用者的更正:「不會出現 tick end」。
 function ladderSVG(){
   var g='',d;
-  function bar(y,half,label){
-    var seg='<g stroke="#fff" stroke-width="2">'+
-      '<line x1="'+(-half)+'" y1="'+y+'" x2="-14" y2="'+y+'"/>'+
-      '<line x1="14" y1="'+y+'" x2="'+half+'" y2="'+y+'"/>'+
-      '<line x1="'+(-half)+'" y1="'+(y-4)+'" x2="'+(-half)+'" y2="'+(y+4)+'"/>'+
-      '<line x1="'+half+'" y1="'+(y-4)+'" x2="'+half+'" y2="'+(y+4)+'"/>'+
-    '</g>';
-    if(label!=null) seg+='<text x="'+(-half-14)+'" y="'+(y+4)+'" font-size="11" fill="#fff" text-anchor="middle">'+label+'</text>'+
-      '<text x="'+(half+14)+'" y="'+(y+4)+'" font-size="11" fill="#fff" text-anchor="middle">'+label+'</text>';
-    return seg;
+  function seg(y,inner,half){
+    return '<line x1="'+(-half)+'" y1="'+y+'" x2="'+(-inner)+'" y2="'+y+'"/>'+
+           '<line x1="'+inner+'" y1="'+y+'" x2="'+half+'" y2="'+y+'"/>';
+  }
+  function major(y,half,label){
+    var s='<g stroke="#fff" stroke-width="2">'+seg(y,14,half)+'</g>';
+    s+='<text x="'+(-half-14)+'" y="'+(y+4)+'" font-size="11" fill="#fff" text-anchor="middle">'+label+'</text>'+
+       '<text x="'+(half+14)+'" y="'+(y+4)+'" font-size="11" fill="#fff" text-anchor="middle">'+label+'</text>';
+    return s;
+  }
+  function minor(y,half){
+    return '<g stroke="#fff" stroke-width="1.3">'+seg(y,6,half)+'</g>';
   }
   for(d=10; d<=20; d+=10){
-    var yUp=-d*CFG.pxPerDeg, yDn=d*CFG.pxPerDeg, half=(d===10?35:50);
-    g+=bar(yUp,half,d)+bar(yDn,half,d);
+    var half=(d===10?35:50);
+    g+=major(-d*CFG.pxPerDeg,half,d)+major(d*CFG.pxPerDeg,half,d);
   }
-  // 5°/15° 短刻度,不標數字、不留缺口(太短用不到)
-  [-5,5,-15,15].forEach(function(d){
-    var y=-d*CFG.pxPerDeg;
-    g+='<line x1="-20" y1="'+y+'" x2="20" y2="'+y+'" stroke="#fff" stroke-width="1.3"/>';
-  });
+  [5,15,-5,-15].forEach(function(d){ g+=minor(-d*CFG.pxPerDeg,22) });   // 5°/15°,較長
+  [2.5,7.5,12.5,17.5,-2.5,-7.5,-12.5,-17.5].forEach(function(d){ g+=minor(-d*CFG.pxPerDeg,16) }); // 2.5° 一格,短
   return g;
 }
 
@@ -153,10 +152,10 @@ function aiSVG(state){
       '</g>'+
     '</g>'+
     '<rect x="1" y="1" width="238" height="238" fill="none" stroke="#4A5359" stroke-width="1.5"/>'+
-    // 兩側黃色短橫桿(照截圖上水平線兩側的黃色標記),不跟著轉,固定在天地線高度稍下方
+    // 兩側黃色短橫桿:高度對齊機身符號尖端(y=111),寬度比原本窄——使用者更正過
     '<g fill="#F4C542">'+
-      '<rect x="24" y="118" width="30" height="7"/>'+
-      '<rect x="186" y="118" width="30" height="7"/>'+
+      '<rect x="31" y="108" width="16" height="6"/>'+
+      '<rect x="193" y="108" width="16" height="6"/>'+
     '</g>'+
     // 固定的機身參考符號:兩片實心三角形「刀刃」,尖端在中央上方幾乎碰在一起,
     // 往外、往下斜張開——照使用者手繪的形狀描的,不是描邊的線條或海鷗翼弧線。
@@ -166,19 +165,21 @@ function aiSVG(state){
       '<polygon points="122,111 140,127 168,131"/>'+
     '</g>'+
     // roll 指標(prototype 固定在正上方,之後 roll 有值時繞著轉)、固定的傾角刻度弧線——
-    // 這一段本來就是彎的,是真機的樣子,不是把整個儀表做成圓形。刻度比照截圖加密。
-    '<polygon points="120,24 114,36 126,36" fill="#fff"/>'+
+    // 這一段本來就是彎的,是真機的樣子,不是把整個儀表做成圓形。整組再往上移一點,
+    // 跟 pitch 刻度(尤其 ±10°/±20° 那兩條)之間留出空隙,兩者不要疊在一起。
+    '<polygon points="120,14 115,25 125,25" fill="#fff"/>'+
     '<g stroke="#fff" stroke-width="1.3">'+
       rollTick(10)+rollTick(-10)+rollTick(20)+rollTick(-20)+
       rollTick(30)+rollTick(-30)+rollTick(45)+rollTick(-45)+rollTick(60)+rollTick(-60)+
     '</g>';
 }
 
-// 傾角刻度:繞面板中心(120,120)、半徑 90 的弧線上,在 bank 角度處畫一小段放射狀短線。
+// 傾角刻度:弧心刻意設在面板中心正上方(120,95),不是跟 pitch 刻度共用的 (120,120)——
+// 半徑也縮小——這樣整組刻度會貼著面板上緣,跟下面的 pitch 刻度分開,不會疊在一起。
 function rollTick(bankDeg){
-  var r1=90,r2=(Math.abs(bankDeg)%30===0?80:84),a=bankDeg*D;
-  var x1=120+r1*Math.sin(a), y1=120-r1*Math.cos(a);
-  var x2=120+r2*Math.sin(a), y2=120-r2*Math.cos(a);
+  var cy=95, r1=62, r2=(Math.abs(bankDeg)%30===0?52:56), a=bankDeg*D;
+  var x1=120+r1*Math.sin(a), y1=cy-r1*Math.cos(a);
+  var x2=120+r2*Math.sin(a), y2=cy-r2*Math.cos(a);
   return '<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+'"/>';
 }
 
