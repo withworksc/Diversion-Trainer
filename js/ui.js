@@ -123,8 +123,8 @@ function readPad(){
   var gp=pickPad(pads);
   if(!gp){ padInfo=null; return null; }
   padInfo={id:gp.id, axes:Array.prototype.slice.call(gp.axes)};
-  return {pitch:Attitude.applyDeadzone(gp.axes[1]),
-          roll: Attitude.applyDeadzone(gp.axes[0])};
+  return {pitch:Attitude.stickCurve(gp.axes[1]),   // 死區 + expo 曲線
+          roll: Attitude.stickCurve(gp.axes[0])};
 }
 
 // 鍵盤代打:只在開關開著時攔截方向鍵,不然會擋到頁面正常捲動

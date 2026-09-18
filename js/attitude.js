@@ -22,6 +22,10 @@
 var CFG = {
   pxPerDeg: 3.6,        // 姿態儀畫面:每度 pitch 對應幾個 px
   deadzone: 0.08,       // 搖桿死區,搖桿沒真的推、只是沒對準中心時不要誤觸
+  // 搖桿曲線:輸出 = (1−expo)·x + expo·x³(x 是扣掉死區後的 0~1)。0 = 線性、1 = 純 cubic。
+  // v2 加的:線性時 30° 坡度守高度只要約 9% 的輸出、扣掉死區實際行程約 16%,短行程硬彈簧
+  // 的桿子(Warthog)很難拿捏;0.5 時同樣輸出要推約 25%,滿桿還是 100%。純 cubic 中心太鈍。
+  expo: 0.5,
 
   // 兩個軸用同一套動態(見 stepAxis),只有參數不同。pitch 有靜穩定性(放桿會慢慢回到
   // 平飛姿態);roll 是中性的(放桿就停在當下的坡度,不會自己回到機翼水平)——跟真的
@@ -94,6 +98,13 @@ function applyDeadzone(x){
   if(Math.abs(x)<dz) return 0;
   var s=x>0?1:-1;
   return s*(Math.abs(x)-dz)/(1-dz);
+}
+
+// 搖桿原始軸值 → 操縱輸入:先扣死區,再套 expo 曲線(見 CFG.expo)。
+// 奇函數、單調、±1 還是 ±1。鍵盤代打是 0/±1,套不套曲線結果都一樣。
+function stickCurve(x,expo){
+  var k=(expo==null)?CFG.expo:expo, v=applyDeadzone(x);
+  return (1-k)*v + k*v*v*v;
 }
 
 function initialState(){
@@ -445,7 +456,7 @@ function renderSVG(state){
   '</svg>';
 }
 
-return {CFG:CFG, applyDeadzone:applyDeadzone, initialState:initialState, resetAlt:resetAlt,
+return {CFG:CFG, applyDeadzone:applyDeadzone, stickCurve:stickCurve, initialState:initialState, resetAlt:resetAlt,
   vsFrom:vsFrom, loadExcess:loadExcess, step:step, renderSVG:renderSVG,
   altDigits:altDigits, vsReadout:vsReadout};
 });

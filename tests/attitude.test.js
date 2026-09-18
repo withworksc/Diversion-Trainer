@@ -321,3 +321,26 @@ test('altitude bug 疊在讀數框上面(剛好在高度上時要看得到 bug)'
   assert.ok(readout>0,'找不到讀數框');
   assert.ok(tapeBug.some(i=>i>readout),'高度帶上的 bug 要在讀數框之後才畫(SVG 後畫的在上面)');
 });
+
+describe('stickCurve:死區 + expo 曲線(linear 跟 cubic 混合)',()=>{
+  const C=Attitude.stickCurve;
+  test('中心、死區內是 0;滿桿還是 ±1',()=>{
+    assert.equal(C(0),0); assert.equal(C(0.05),0);
+    assert.ok(Math.abs(C(1)-1)<1e-12); assert.ok(Math.abs(C(-1)+1)<1e-12);
+  });
+  test('左右對稱(奇函數)、單調遞增',()=>{
+    let prev=-Infinity;
+    for(let x=-1;x<=1.0001;x+=0.01){
+      const y=C(x); assert.ok(y>=prev-1e-12,`x=${x.toFixed(2)} 不單調`); prev=y;
+      assert.ok(Math.abs(C(x)+C(-x))<1e-12);
+    }
+  });
+  test('expo 0 就是原本的線性死區',()=>{
+    for(const x of [0.1,0.3,0.6,-0.8]) assert.ok(Math.abs(C(x,0)-Attitude.applyDeadzone(x))<1e-12);
+  });
+  test('中心附近比線性鈍:同樣 9% 輸出要推得比線性多(小修正比較好拿捏)',()=>{
+    const need=e=>{ let x=0; while(C(x,e)<0.09) x+=0.001; return x; };
+    const lin=need(0), cur=need(Attitude.CFG.expo);
+    assert.ok(cur>lin+0.05,`9% 輸出:線性要推 ${(lin*100).toFixed(0)}%,曲線要推 ${(cur*100).toFixed(0)}%`);
+  });
+});
