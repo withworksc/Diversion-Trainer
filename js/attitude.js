@@ -20,21 +20,42 @@
 // 那些航圖量測值不是同一個等級的「事實」，純粹是遊戲感手感參數。
 var CFG = {
   pxPerDeg: 3.6,        // 姿態儀畫面:每度 pitch 對應幾個 px
-  pitchLimit: 25,       // deg,pitch 顯示上限(超過就是失控,先夾住不讓畫面爆開)
-  springToTrim: 0.15,   // 1/s²,配平拉力:pitch 越偏離 0 越想被拉回去(模擬靜穩定性)
-  idleSpring: 4.0,      // 沒在出題/開關關閉時,額外加這麼多拉力,讓指針很快歸零
-  gustJitter: 6,        // deg/s²,亂流的隨機擾動強度
-  gustDecay: 0.6,       // 1/s,亂流本身會自己衰減,不是永遠往同一個方向跑
-  damping: 0.8,         // 1/s,角速度的阻尼,不然會一直震盪不停
-  controlGain: 18,      // deg/s²,搖桿全滿時修正力道
   deadzone: 0.08,       // 搖桿死區,搖桿沒真的推、只是沒對準中心時不要誤觸
+
+  // 兩個軸用同一套動態(見 stepAxis),只有參數不同。roll 的操縱力道比 pitch 大、
+  // 回正力比較弱(飛機本來就是 pitch 靜穩定性比較強、滾轉比較容易被吹歪)。
+  pitch: {
+    limit: 25,          // deg,顯示上限(超過就是失控,先夾住不讓畫面爆開)
+    spring: 0.15,       // 1/s²,配平拉力:越偏離 0 越想被拉回去(模擬靜穩定性)
+    idleSpring: 4.0,    // 沒在出題/開關關閉時額外加的拉力,讓指針很快歸零
+    gustJitter: 6,      // deg/s²,亂流的隨機擾動強度
+    gustDecay: 0.6,     // 1/s,亂流本身會自己衰減,不是永遠往同一個方向跑
+    damping: 0.8,       // 1/s,角速度阻尼(跟 spring 搭起來剛好臨界阻尼)
+    controlGain: 18     // deg/s²,桿子推到底的修正力道
+  },
+  // roll 的參數是跑模擬調出來的(見 docs/HANDOFF.md):不操作時 60 秒漂 ±4~5°,
+  // 跟 pitch 同一個量級;滿桿 1.5 秒約 22° 坡度。原本 gain 45 太靈敏(滿桿 1.5 秒
+  // 就 38°),小修正很難拿捏;spring 也從 0.08 提到 0.18 讓它會慢慢自己回平,
+  // 配 damping 0.85 剛好臨界阻尼,不會左右擺盪。
+  roll: {
+    limit: 60,
+    spring: 0.18,
+    idleSpring: 4.0,
+    gustJitter: 6,
+    gustDecay: 0.7,
+    damping: 0.85,
+    controlGain: 30
+  },
 
   tasKt: 115,           // kt,算 VS 用的假設空速(跟這個工具其他地方的巡航速度量級一致)
   ktToFpm: 101.3,       // 1 kt 的下滑/爬升分量換算成 ft/min 的係數
+  bankSinkFpm: 420,     // fpm,坡度造成的掉高係數:升力的垂直分量隨 1/cos(bank) 變差,
+                        // 壓坡度不帶桿就會掉高——這正是這個練習要讓人有感的地方
   altBaseline: 2000,    // ft,高度帶的參考起點(跟主工具的改降高度是兩回事,見檔頭註解)
   altPxPerFt: 0.6,      // 高度帶:每英尺對應幾個 px
   vsMax: 2000           // fpm,VSI 滿刻度
 };
+CFG.pitchLimit = CFG.pitch.limit;   // 畫面與測試在用的簡寫
 
 function clamp(x,lo,hi){return Math.max(lo,Math.min(hi,x))}
 var D=Math.PI/180;
@@ -48,7 +69,9 @@ function applyDeadzone(x){
 }
 
 function initialState(){
-  return {pitch:0, rate:0, gust:0, roll:0, heading:0, alt:CFG.altBaseline, vs:0};
+  return {pitch:0, rate:0, gust:0,
+          roll:0, rollRate:0, rollGust:0,
+          heading:0, alt:CFG.altBaseline, vs:0};
 }
 
 // 出新題時呼叫:高度歸零重算,姿態本身(pitch/rate/gust)不動——避免換題目時飛機
@@ -72,40 +95,55 @@ function vsFromPitch(pitchDeg){
   return CFG.tasKt*Math.sin(pitchDeg*D)*CFG.ktToFpm;
 }
 
-// dt:秒;input:-1~1 的搖桿修正輸入(已經過死區處理);active:是否在「該顧姿態」的狀態
-// (開關開著 && 目前有題目在跑);rnd:可注入固定種子的亂數,測試用來重現同一段亂流。
+// 單一軸的動態:亂流(會自我衰減的隨機漫步)+ 回正力 + 阻尼 + 操縱輸入。
+// pitch 跟 roll 共用這一套,只有 CFG 參數不同——不要為了第二個軸複製一份。
+// ax:{value,rate,gust};k:CFG.pitch 或 CFG.roll。回傳新的 {value,rate,gust}。
+function stepAxis(ax,dt,ctl,active,rnd,k){
+  // 亂流本身是會自己衰減的隨機漫步,不是白噪音——不然每個影格都獨立亂跳,畫面上
+  // 只會看到抖動,不會有「要顧著修正」的漂移感。衰減乘數要夾住下限:dt 大或
+  // gustDecay 調高時,不夾住乘數會變負值,亂流會反過來越滾越大。
+  var gust = ax.gust*Math.max(0, 1-k.gustDecay*dt) + (rnd()-0.5)*2*k.gustJitter*dt;
+  // 沒在出題或開關關掉時,亂流本身也加速歸零,指針才會真的停平,不是慢慢飄回去。
+  if(!active) gust *= Math.max(0, 1-k.gustDecay*4*dt);
+
+  var spring = k.spring + (active?0:k.idleSpring);
+  // 阻尼要跟回正力配對:這是彈簧系統,阻尼比 ζ = damping/(2√spring)。出題中的
+  // spring/damping 是配好的;停止時把 spring 加上 idleSpring 卻沿用原本的 damping
+  // 會變成嚴重欠阻尼(ζ≈0.2),指針像單擺一樣盪過水平再盪回來,十幾秒才停。
+  // 所以閒置時改用臨界阻尼 2√spring,直接、不過衝地回到水平。
+  var damping = active ? k.damping : 2*Math.sqrt(spring);
+  var rate = ax.rate + ((active?gust:0) - ax.value*spring + ctl*k.controlGain)*dt;
+  rate *= Math.max(0, 1-damping*dt);
+  var next = ax.value + rate*dt;
+  // 撞到上下限時把角速度也夾住(anti-windup):不然桿子頂在限制上時 rate 會繼續累積,
+  // 之後往回修正還要先把這股累積的速度耗掉才會真的開始回頭,手感會覺得「卡住」。
+  if(next> k.limit && rate>0) rate=0;
+  if(next<-k.limit && rate<0) rate=0;
+  return {value:clamp(next,-k.limit,k.limit), rate:rate, gust:gust};
+}
+
+// dt:秒;active:是否在「該顧姿態」的狀態(開關開著 && 目前有題目在跑);
+// rnd:可注入固定種子的亂數,測試用來重現同一段亂流。
+// input:−1~1 的操縱輸入(已經過死區處理)。給數字 = 只有 pitch(舊的呼叫方式,
+// 測試還在用);要兩軸就給 {pitch:…, roll:…}。
 function step(state,dt,input,active,rnd){
   rnd = rnd || Math.random;
   var s=clone(state);
-  var ctl = active ? clamp(input,-1,1) : 0;
+  var inp = (input==null) ? {pitch:0,roll:0}
+          : (typeof input==='number') ? {pitch:input,roll:0}
+          : {pitch:input.pitch||0, roll:input.roll||0};
 
-  // 亂流本身是會自己衰減的隨機漫步,不是白噪音——不然每個影格都獨立亂跳,
-  // 畫面上只會看到抖動,不會有「要顧著修正」的漂移感。衰減乘數跟下面兩個 Math.max(0,…)
-  // 一樣要夾住下限:dt 大或 gustDecay 調高時,不夾住乘數會變負值,亂流會反過來越滾越大。
-  s.gust = s.gust*Math.max(0, 1-CFG.gustDecay*dt) + (rnd()-0.5)*2*CFG.gustJitter*dt;
-  if(!active){
-    // 沒在出題或開關關掉時,亂流本身也加速歸零,指針才會真的停平,不是慢慢飄回去。
-    s.gust *= Math.max(0, 1-CFG.gustDecay*4*dt);
-  }
+  var p = stepAxis({value:s.pitch, rate:s.rate, gust:s.gust},
+                   dt, active?clamp(inp.pitch,-1,1):0, active, rnd, CFG.pitch);
+  s.pitch=p.value; s.rate=p.rate; s.gust=p.gust;
 
-  var spring = CFG.springToTrim + (active?0:CFG.idleSpring);
-  // 阻尼要跟回正力配對:這是彈簧系統,阻尼比 ζ = damping/(2√spring)。
-  // 出題中 spring=0.15、damping=0.8 → ζ≈1.03,剛好臨界阻尼,飄動看起來是平順的漫遊。
-  // 停止時把 spring 加到 4.15 卻沿用 damping=0.8 的話 ζ 只剩 0.2,是嚴重欠阻尼——
-  // 指針會像單擺一樣盪過水平再盪回來,要十幾秒才停。所以閒置時改用臨界阻尼 2√spring,
-  // 指針直接、不過衝地回到水平。(這是實際按「顯示答案」測出來才發現的)
-  var damping = active ? CFG.damping : 2*Math.sqrt(spring);
-  var accel = (active?s.gust:0) - s.pitch*spring + ctl*CFG.controlGain;
-  s.rate += accel*dt;
-  s.rate *= Math.max(0, 1-damping*dt);
-  var pitchNext = s.pitch+s.rate*dt;
-  // 撞到上下限時把角速度也夾住(anti-windup):不然桿子頂在限制上時 rate 會繼續累積,
-  // 之後往回修正還要先把這股累積的速度耗掉才會真的開始回頭,手感會覺得「卡住」。
-  if(pitchNext>CFG.pitchLimit && s.rate>0) s.rate=0;
-  if(pitchNext<-CFG.pitchLimit && s.rate<0) s.rate=0;
-  s.pitch = clamp(pitchNext, -CFG.pitchLimit, CFG.pitchLimit);
+  var r = stepAxis({value:s.roll, rate:s.rollRate||0, gust:s.rollGust||0},
+                   dt, active?clamp(inp.roll,-1,1):0, active, rnd, CFG.roll);
+  s.roll=r.value; s.rollRate=r.rate; s.rollGust=r.gust;
 
-  s.vs = vsFromPitch(s.pitch);
+  // 垂直速度 = pitch 的分量 − 坡度造成的掉高。壓了坡度不帶桿就會掉高度,這是這個
+  // 練習最想讓人有感的其中一件事,所以 roll 不只是畫面上轉一轉,會真的反映在高度上。
+  s.vs = vsFromPitch(s.pitch) - CFG.bankSinkFpm*(1/Math.cos(clamp(s.roll,-80,80)*D) - 1);
   s.alt = s.alt + s.vs/60*dt;
 
   return s;
@@ -214,15 +252,17 @@ function aiSVG(state){
       '<rect x="5" y="117.5" width="26" height="5" rx="2.5"/>'+
       '<rect x="209" y="117.5" width="26" height="5" rx="2.5"/>'+
     '</g>'+
-    // 固定的機身參考符號:兩片很薄的實心三角形「刀刃」,尖端就在姿態中心 (120,120)——
-    // 也就是讀 pitch 的基準點,往外、往下斜張開。比例是照實機照片量的:
-    //   翼展(尖端到翼尖)   = ladder 主刻度半長的 2.2 倍  → 72px
-    //   垂直落差            = 5° 的 pitch                 → 5×3.6 ≈ 18px
-    //   內側底點離尖端      = 翼展的 0.26 倍              → 19px(這個決定刀刃多薄)
-    // 描邊也收細一點,不然這麼薄的刀刃會被自己的黑邊吃掉。
-    '<g stroke="#000" stroke-width="1.8" stroke-linejoin="round" fill="#FFD400">'+
-      '<polygon points="120,120 48,138 101,138"/>'+
-      '<polygon points="120,120 192,138 139,138"/>'+
+    // 固定的機身參考符號:兩片很薄的實心「刀刃」,尖端就在姿態中心 (120,120)——
+    // 也就是讀 pitch 的基準點,往外、往下斜張開。
+    // 形狀比例是照使用者手繪量的(IMG_0354):最寬的地方在「翼尖那一端」,
+    // 從那裡一路收成尖的到中央尖端——不是在靠近中央處鼓起來(那是先前畫錯的版本)。
+    //   翼展(尖端→翼尖)   74px
+    //   垂直落差           26px
+    //   第三個頂點         離尖端 0.69 倍翼展處,比翼尖高一點點 → 刀刃在外側最寬
+    // 描邊收細,不然這麼薄的刀刃會被自己的黑邊吃掉。
+    '<g stroke="#000" stroke-width="1.5" stroke-linejoin="round" fill="#FFD400">'+
+      '<polygon points="120,120 46,146 69,145"/>'+
+      '<polygon points="120,120 194,146 171,145"/>'+
     '</g>';
 }
 

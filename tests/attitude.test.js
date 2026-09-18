@@ -140,6 +140,52 @@ describe('vsFromPitch／高度積分:姿態誤差要能反映成看得見的高�
   });
 });
 
+describe('roll 軸:跟 pitch 同一套動態,參數不同',()=>{
+  test('initialState 帶 roll/rollRate/rollGust',()=>{
+    const s=Attitude.initialState();
+    assert.equal(s.roll,0); assert.equal(s.rollRate,0); assert.equal(s.rollGust,0);
+  });
+  test('往右壓桿 → 右坡度(正值);往左 → 負值',()=>{
+    const r=rng(20);
+    let a=Attitude.initialState(), b=Attitude.initialState();
+    for(let i=0;i<40;i++){
+      a=Attitude.step(a,0.05,{pitch:0,roll:1},true,rng(20));
+      b=Attitude.step(b,0.05,{pitch:0,roll:-1},true,rng(20));
+    }
+    assert.ok(a.roll>3,`右滿桿 2 秒 roll=${a.roll.toFixed(1)}°`);
+    assert.ok(b.roll<-3,`左滿桿 2 秒 roll=${b.roll.toFixed(1)}°`);
+  });
+  test('roll 夾在 ±limit 之內',()=>{
+    const r=rng(21); let s=Attitude.initialState();
+    for(let i=0;i<2000;i++) s=Attitude.step(s,0.05,{pitch:0,roll:1},true,r);
+    assert.ok(Math.abs(s.roll)<=Attitude.CFG.roll.limit+1e-6,`roll=${s.roll}`);
+  });
+  test('停止(active=false)後 roll 也會自己回平,而且不過衝',()=>{
+    const r=rng(22);
+    let s=Attitude.initialState(); s.roll=30;
+    let minRoll=30;
+    for(let i=0;i<200;i++){ s=Attitude.step(s,0.05,{pitch:0,roll:0},false,r); minRoll=Math.min(minRoll,s.roll); }
+    assert.ok(minRoll>-0.5,`不該過衝到負的,最低 ${minRoll.toFixed(2)}°`);
+    assert.ok(Math.abs(s.roll)<0.5,`10 秒後應該回平,實際 ${s.roll.toFixed(2)}°`);
+  });
+  test('數字給 input 時只影響 pitch,roll 不動(舊呼叫方式仍相容)',()=>{
+    const s=Attitude.step(Attitude.initialState(),0.05,1,true,()=>0.5);
+    assert.ok(s.pitch>0);
+    assert.equal(s.rollGust!==undefined,true);
+  });
+});
+
+test('壓坡度不帶桿會掉高度(升力垂直分量變差)',()=>{
+  // pitch 固定 0,只有坡度不同:坡度越大,VS 越負
+  const flat={pitch:0,rate:0,gust:0,roll:0,rollRate:0,rollGust:0,heading:0,alt:2000,vs:0};
+  const bank30=Object.assign({},flat,{roll:30});
+  const bank45=Object.assign({},flat,{roll:45});
+  const vs=s=>Attitude.step(s,0.05,{pitch:0,roll:0},false,()=>0.5).vs;
+  assert.ok(Math.abs(vs(flat))<1,`機翼水平時 VS 應該≈0,實際 ${vs(flat).toFixed(0)}`);
+  assert.ok(vs(bank30)<-30,`30° 坡度應該明顯掉高,實際 ${vs(bank30).toFixed(0)} fpm`);
+  assert.ok(vs(bank45)<vs(bank30),'45° 要比 30° 掉得更快');
+});
+
 test('resetAlt:高度重設回基準值,姿態(pitch/rate/gust)不變',()=>{
   const s={pitch:7,rate:1.2,gust:-2,roll:0,heading:0,alt:2345,vs:99};
   const r=Attitude.resetAlt(s);
