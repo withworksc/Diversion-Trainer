@@ -190,20 +190,24 @@ describe('壓坡度不帶桿:機頭下沉、高度看得到在掉(轉彎要帶�
     const s=holdBank(0,0,10);
     assert.ok(Math.abs(s.alt-3000)<1,`10 秒後高度變化 ${(s.alt-3000).toFixed(1)} ft`);
   });
-  test('30° 坡度 10 秒:機頭沉到平飛以下 3° 以上,掉高度超過 50 ft',()=>{
+  test('30° 坡度 10 秒:機頭沉到平飛以下 6° 以上,掉高度超過 150 ft(v2 調強,v1 只掉約 100 ft)',()=>{
     const s=holdBank(30,0,10);
-    assert.ok(s.pitch<trim-3,`機頭應該明顯下沉,pitch=${s.pitch.toFixed(1)}°`);
-    assert.ok(3000-s.alt>50,`應該掉超過 50 ft,實際 ${(3000-s.alt).toFixed(0)} ft`);
+    assert.ok(s.pitch<trim-6,`機頭應該明顯下沉,pitch=${s.pitch.toFixed(1)}°`);
+    assert.ok(3000-s.alt>150,`應該掉超過 150 ft,實際 ${(3000-s.alt).toFixed(0)} ft`);
+  });
+  test('30° 坡度 3 秒內 VSI 就看得到 −500 fpm 以上(不能等好幾秒才有反應)',()=>{
+    const s=holdBank(30,0,3);
+    assert.ok(s.vs<-500,`3 秒時 VS=${s.vs.toFixed(0)} fpm`);
   });
   test('坡度越大掉得越快(45° > 30° > 15°)',()=>{
     const loss=b=>3000-holdBank(b,0,10).alt;
     assert.ok(loss(45)>loss(30)&&loss(30)>loss(15),`15°/30°/45°:${[15,30,45].map(b=>loss(b).toFixed(0)).join('/')} ft`);
   });
-  test('亂流造成的小坡度(5°)幾乎不影響高度',()=>{
-    assert.ok(3000-holdBank(5,0,10).alt<5);
+  test('亂流造成的小坡度(5°)幾乎不影響高度(10 秒不到 10 ft;30° 是 150 ft 以上)',()=>{
+    assert.ok(3000-holdBank(5,0,10).alt<10);
   });
-  test('30° 坡度帶一點桿,就能把高度守住',()=>{
-    const s=holdBank(30,0.045,10);
+  test('30° 坡度帶一點桿(約 1/10 行程),就能把高度守住',()=>{
+    const s=holdBank(30,0.09,10);
     assert.ok(Math.abs(s.alt-3000)<20,`帶桿後 10 秒高度變化 ${(s.alt-3000).toFixed(0)} ft`);
   });
 });
@@ -258,4 +262,62 @@ test('step:pitch 頂到上限時角速度會被夾住(anti-windup),不會有「�
   s=run(s,400,0.05,1,true,r); // 全力拉桿 20 秒,頂到上限
   assert.equal(s.pitch,Attitude.CFG.pitchLimit);
   assert.ok(s.rate<=0+1e-9,`頂到上限時 rate 應該被夾到 <=0,實際 ${s.rate}`);
+});
+
+describe('v2:roll 中性穩定、亂流幅度、跟螢幕更新率無關',()=>{
+  const still=()=>0.5;   // 亂數固定 0.5 = 沒有亂流
+  test('出題中放桿:停在當下的坡度,不會自己回到機翼水平',()=>{
+    let s=Attitude.initialState(); s.roll=25;
+    for(let i=0;i<200;i++) s=Attitude.step(s,0.05,{pitch:0,roll:0},true,still);
+    assert.ok(Math.abs(s.roll-25)<0.5,`10 秒後坡度 ${s.roll.toFixed(2)}°`);
+  });
+  test('滿桿 1.5 秒再放桿:滾轉很快停住,不會一路滑下去',()=>{
+    let s=Attitude.initialState();
+    for(let i=0;i<30;i++) s=Attitude.step(s,0.05,{pitch:0,roll:1},true,still);
+    const atRelease=s.roll;
+    for(let i=0;i<100;i++) s=Attitude.step(s,0.05,{pitch:0,roll:0},true,still);
+    assert.ok(atRelease>15,`滿桿 1.5 秒只到 ${atRelease.toFixed(1)}°`);
+    assert.ok(s.roll-atRelease<8,`放桿後又多滾了 ${(s.roll-atRelease).toFixed(1)}°`);
+  });
+  // 不動桿跑 sec 秒,回傳 pitch 偏離平飛的 RMS 與 |roll| 的時間平均(30 顆固定種子的中位數)
+  function drift(hz,sec){
+    const dt=1/hz, trim=Attitude.CFG.pitch.trim, pr=[], rr=[];
+    for(let seed=1;seed<=30;seed++){
+      let s=Attitude.initialState(), r=rng(seed*101), sq=0, ra=0, n=0;
+      for(let i=0;i<sec*hz;i++){ s=Attitude.step(s,dt,{pitch:0,roll:0},true,r); sq+=(s.pitch-trim)**2; ra+=Math.abs(s.roll); n++; }
+      pr.push(Math.sqrt(sq/n)); rr.push(ra/n);
+    }
+    const med=a=>a.sort((x,y)=>x-y)[a.length>>1];
+    return {pitch:med(pr), roll:med(rr)};
+  }
+  test('不動桿時姿態會明顯跑掉(v2 調大):pitch RMS > 2°,坡度平均 > 3°',()=>{
+    const d=drift(60,30);
+    assert.ok(d.pitch>2,`pitch RMS ${d.pitch.toFixed(2)}°`);
+    assert.ok(d.roll>3,`|roll| 平均 ${d.roll.toFixed(2)}°`);
+  });
+  test('60 Hz 跟 120 Hz 螢幕的亂流強度差不多(隨機項乘 √dt)',()=>{
+    const a=drift(60,30), b=drift(120,30);
+    assert.ok(Math.abs(a.pitch/b.pitch-1)<0.25,`pitch RMS 60Hz ${a.pitch.toFixed(2)} vs 120Hz ${b.pitch.toFixed(2)}`);
+    assert.ok(Math.abs(a.roll/b.roll-1)<0.35,`|roll| 60Hz ${a.roll.toFixed(2)} vs 120Hz ${b.roll.toFixed(2)}`);
+  });
+});
+
+test('altitude bug 放大(v2):高度帶上的 bug 至少 17 px 高、右緣不壓到刻度數字',()=>{
+  const svg=Attitude.renderSVG(Object.assign(Attitude.initialState(),{alt:3045}));
+  const bugs=[...svg.matchAll(/<polygon points="([^"]+)" fill="#29E6E6"/g)].map(m=>{
+    const p=m[1].trim().split(/\s+/).map(q=>q.split(',').map(Number));
+    const xs=p.map(q=>q[0]), ys=p.map(q=>q[1]);
+    return {x0:Math.min(...xs), w:Math.max(...xs)-Math.min(...xs), h:Math.max(...ys)-Math.min(...ys)};
+  });
+  const tape=bugs.reduce((a,b)=>b.h>a.h?b:a);
+  assert.ok(tape.h>=17,`bug 高 ${tape.h}`);
+  assert.ok(tape.w<=12,`bug 寬 ${tape.w}(刻度數字從帶子左緣 +12 開始)`);
+});
+
+test('altitude bug 疊在讀數框上面(剛好在高度上時要看得到 bug)',()=>{
+  const svg=Attitude.renderSVG(Attitude.initialState());   // alt 3000 = bug 高度
+  const readout=svg.indexOf('fill="#000"/><text');
+  const tapeBug=[...svg.matchAll(/<polygon points="[^"]+" fill="#29E6E6"\/>/g)].map(m=>m.index);
+  assert.ok(readout>0,'找不到讀數框');
+  assert.ok(tapeBug.some(i=>i>readout),'高度帶上的 bug 要在讀數框之後才畫(SVG 後畫的在上面)');
 });

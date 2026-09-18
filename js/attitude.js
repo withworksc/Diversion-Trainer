@@ -23,8 +23,9 @@ var CFG = {
   pxPerDeg: 3.6,        // 姿態儀畫面:每度 pitch 對應幾個 px
   deadzone: 0.08,       // 搖桿死區,搖桿沒真的推、只是沒對準中心時不要誤觸
 
-  // 兩個軸用同一套動態(見 stepAxis),只有參數不同。roll 的操縱力道比 pitch 大、
-  // 回正力比較弱(飛機本來就是 pitch 靜穩定性比較強、滾轉比較容易被吹歪)。
+  // 兩個軸用同一套動態(見 stepAxis),只有參數不同。pitch 有靜穩定性(放桿會慢慢回到
+  // 平飛姿態);roll 是中性的(放桿就停在當下的坡度,不會自己回到機翼水平)——跟真的
+  // 飛機一樣。
   pitch: {
     // 平飛姿態:DA40 巡航平飛時機頭約上仰 2°(使用者提供)。這 2° 是巡航攻角,所以
     // 姿態 2° 時航跡角是 0、不爬不降(見 vsFrom)。回正力、初始值、停止時歸位都朝它。
@@ -32,28 +33,32 @@ var CFG = {
     limit: 25,          // deg,顯示上限(超過就是失控,先夾住不讓畫面爆開)
     spring: 0.15,       // 1/s²,配平拉力:越偏離 trim 越想被拉回去(模擬靜穩定性)
     idleSpring: 4.0,    // 沒在出題/開關關閉時額外加的拉力,讓指針很快歸位
-    gustJitter: 6,      // deg/s²,亂流的隨機擾動強度
+    gustJitter: 1.6,    // 亂流的隨機擾動強度(乘 √dt,見 stepAxis)。v2 調大:不動桿時
+                        // pitch 平均偏離平飛約 2.7°(v1 約 1.3°)
     gustDecay: 0.6,     // 1/s,亂流本身會自己衰減,不是永遠往同一個方向跑
     damping: 0.8,       // 1/s,角速度阻尼(跟 spring 搭起來剛好臨界阻尼)
     controlGain: 18,    // deg/s²,桿子推到底的修正力道
     // 壓坡度不帶桿時機頭往下掉的力道(deg/s²,乘上負載因數多出來的部分 1/cos−1)。
     // 升力傾斜後垂直分量不夠撐住重量,航跡往下彎,機頭跟著航跡往下沉——這是「轉彎要
-    // 帶桿」要練的東西,也是學員要在姿態儀上看得到的。值是跑模擬調的:30° 坡度不帶桿,
-    // 機頭約沉到平飛下方 5°、掉高約 1000 fpm;亂流造成的 ±5° 小坡度幾乎沒影響。
-    bankDrop: 5
+    // 帶桿」要練的東西,也是學員要在姿態儀上看得到的。v2 從 5 調到 10(使用者:轉彎掉
+    // 高度要更明顯),數字見 docs/HANDOFF.md 姿態訓練一節;亂流的 ±5° 小坡度幾乎沒影響。
+    bankDrop: 10
   },
-  // roll 的參數是跑模擬調出來的(見 docs/HANDOFF.md 姿態訓練一節):不操作時 60 秒漂 ±4~5°,
-  // 跟 pitch 同一個量級;滿桿 1.5 秒約 22° 坡度。原本 gain 45 太靈敏(滿桿 1.5 秒
-  // 就 38°),小修正很難拿捏;spring 也從 0.08 提到 0.18 讓它會慢慢自己回平,
-  // 配 damping 0.85 剛好臨界阻尼,不會左右擺盪。
+  // roll 的參數是跑模擬調出來的(見 docs/HANDOFF.md 姿態訓練一節)。
+  // spring 0 = 中性穩定:出題中放桿就停在當下的坡度,不會自己回到機翼水平(v1 是 0.18,
+  // 會慢慢自己回平——使用者指出真的飛機不會這樣)。所以桿子控制的是「滾轉速率」:
+  // 滿桿約 18°/s(1.5 秒約 21° 坡度),放桿後再多滾約 5° 就停住——damping 要夠大
+  // (滾轉阻尼,時間常數約 0.3 秒),不然放桿後會一路滑到 50° 以上。亂流吹歪的坡度也
+  // 一樣不會自己回來,不修就會越漂越大(不動桿 30 秒中位數約 6°)。
+  // 停止出題時靠 idleSpring 回平,那是畫面歸位,不是飛機的性質。
   roll: {
     limit: 60,
-    spring: 0.18,
+    spring: 0,
     idleSpring: 4.0,
-    gustJitter: 6,
+    gustJitter: 7,
     gustDecay: 0.7,
-    damping: 0.85,
-    controlGain: 30
+    damping: 3,
+    controlGain: 55
   },
 
   tasKt: 115,           // kt,算 VS 用的假設空速(跟這個工具其他地方的巡航速度量級一致)
@@ -137,7 +142,9 @@ function stepAxis(ax,dt,ctl,active,rnd,k,extra){
   // 亂流本身是會自己衰減的隨機漫步,不是白噪音——不然每個影格都獨立亂跳,畫面上
   // 只會看到抖動,不會有「要顧著修正」的漂移感。衰減乘數要夾住下限:dt 大或
   // gustDecay 調高時,不夾住乘數會變負值,亂流會反過來越滾越大。
-  var gust = ax.gust*Math.max(0, 1-k.gustDecay*dt) + (rnd()-0.5)*2*k.gustJitter*dt;
+  // 隨機項乘的是 √dt 不是 dt:每格乘 dt 的話,每秒累積的變異數跟影格長度成正比,
+  // 120 Hz 螢幕的亂流會比 60 Hz 弱約 30%(v1 就是這樣)。√dt 才跟更新率無關。
+  var gust = ax.gust*Math.max(0, 1-k.gustDecay*dt) + (rnd()-0.5)*2*k.gustJitter*Math.sqrt(dt);
   // 沒在出題或開關關掉時,亂流本身也加速歸零,指針才會真的停平,不是慢慢飄回去。
   if(!active) gust *= Math.max(0, 1-k.gustDecay*4*dt);
 
@@ -315,10 +322,16 @@ function aiSVG(state){
 //   · 帶子左緣:洋紅趨勢線,從目前高度畫到 trendSec 秒後會到的高度
 // 這個高度是姿態小遊戲自己的模擬值(見檔頭註解),不是主工具改降情境的高度。
 
-// altitude bug:青色方塊,朝刻度那一側切一個 V 形缺口
-function bugSVG(x,y){
-  return '<polygon points="'+x+','+(y-5)+' '+(x+8)+','+(y-5)+' '+(x+8)+','+(y-2)+' '+(x+5)+','+y+' '+
-    (x+8)+','+(y+2)+' '+(x+8)+','+(y+5)+' '+x+','+(y+5)+'" fill="'+COLOR.cyan+'"/>';
+// altitude bug:青色方塊,朝刻度那一側切一個 V 形缺口。基本尺寸 6.5 寬 × 10 高,
+// scale 放大。v2 把高度帶上的 bug 放大到 1.8 倍(使用者:bug 要大一些),而且改成
+// 疊在讀數框「上面」畫(跟實機一樣)——v1 先畫 bug 再畫讀數框,剛好在高度上時 bug
+// 整個被讀數框蓋掉,看不到「正在 bug 上」。
+var BUG = {tape:1.8, sel:1.25, w:6.5, h:5, notchX:4, notchH:2};  // w 6.5:放大後右緣停在刻度數字(x0+12)左邊
+function bugSVG(x,y,scale){
+  var k=scale||1, w=BUG.w*k, h=BUG.h*k, nx=BUG.notchX*k, nh=BUG.notchH*k,
+      pt=function(dx,dy){ return (x+dx).toFixed(1)+','+(y+dy).toFixed(1); };
+  return '<polygon points="'+[pt(0,-h),pt(w,-h),pt(w,-nh),pt(nx,0),pt(w,nh),pt(w,h),pt(0,h)].join(' ')+
+    '" fill="'+COLOR.cyan+'"/>';
 }
 
 // 讀數框的數字:末兩位取「最接近的 20 ft」為中心,上下各兩格一起捲;
@@ -357,18 +370,20 @@ function altTapeSVG(state){
        'stroke="'+COLOR.tick+'" stroke-width="1.2"/>';
     if(major) g+='<text x="'+(x0+12)+'" y="'+(y+4).toFixed(1)+'" font-size="11" fill="'+COLOR.label+'">'+a+'</text>';
   }
-  g+=bugSVG(x0, clamp(A.cy-(CFG.altBaseline-alt)*px, A.top+5, A.bot-5));
   var trend=A.cy-(state.vs*CFG.trendSec/60)*px;
   if(Math.abs(trend-A.cy)>1){
     g+='<rect x="'+(x0+0.5)+'" y="'+Math.min(A.cy,trend).toFixed(1)+'" width="3" '+
        'height="'+Math.abs(trend-A.cy).toFixed(1)+'" fill="'+COLOR.magenta+'"/>';
   }
-  g+='</g>'+altReadoutSVG(alt);
+  // bug 最後畫,疊在讀數框上面(見 bugSVG 的註解);不放進 altClip,位置本來就夾在帶子內
+  var bugH=BUG.h*BUG.tape;
+  g+='</g>'+altReadoutSVG(alt)+
+     bugSVG(x0, clamp(A.cy-(CFG.altBaseline-alt)*px, A.top+bugH, A.bot-bugH), BUG.tape);
 
   // 上方選定高度框、下方氣壓框(氣壓固定 1013 hPa,照實機照片)
   var sh=A.top-A.selTop;
   g+='<rect x="'+x0+'" y="'+A.selTop+'" width="'+A.w+'" height="'+sh+'" fill="#000" stroke="'+COLOR.frame+'" stroke-width="1"/>'+
-     bugSVG(x0+3, A.selTop+sh/2)+
+     bugSVG(x0+3, A.selTop+sh/2, BUG.sel)+
      '<text x="'+(x0+A.w-3)+'" y="'+(A.selTop+sh/2+4.5)+'" font-size="13" font-weight="700" '+
        'fill="'+COLOR.cyan+'" text-anchor="end">'+CFG.altBaseline+'</text>'+
      '<rect x="'+x0+'" y="'+A.bot+'" width="'+A.w+'" height="'+A.baroH+'" fill="#000" stroke="'+COLOR.frame+'" stroke-width="1"/>'+
