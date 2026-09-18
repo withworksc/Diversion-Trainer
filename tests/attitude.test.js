@@ -8,8 +8,8 @@ const Attitude=require('../js/attitude.js');
 describe('applyDeadzone:死區內視為 0,死區外線性重新映射不跳一階',()=>{
   test('死區內回傳 0',()=>{
     assert.equal(Attitude.applyDeadzone(0),0);
-    assert.equal(Attitude.applyDeadzone(0.05),0);
-    assert.equal(Attitude.applyDeadzone(-0.07),0);
+    assert.equal(Attitude.applyDeadzone(0.03),0);
+    assert.equal(Attitude.applyDeadzone(-0.035),0);
   });
   test('死區邊界剛好是 0(連續,不跳一階)',()=>{
     const dz=Attitude.CFG.deadzone;
@@ -325,7 +325,7 @@ test('altitude bug 疊在讀數框上面(剛好在高度上時要看得到 bug)'
 describe('stickCurve:死區 + expo 曲線(linear 跟 cubic 混合)',()=>{
   const C=Attitude.stickCurve;
   test('中心、死區內是 0;滿桿還是 ±1',()=>{
-    assert.equal(C(0),0); assert.equal(C(0.05),0);
+    assert.equal(C(0),0); assert.equal(C(0.03),0);
     assert.ok(Math.abs(C(1)-1)<1e-12); assert.ok(Math.abs(C(-1)+1)<1e-12);
   });
   test('左右對稱(奇函數)、單調遞增',()=>{
@@ -341,6 +341,10 @@ describe('stickCurve:死區 + expo 曲線(linear 跟 cubic 混合)',()=>{
   test('中心附近比線性鈍:同樣 9% 輸出要推得比線性多(小修正比較好拿捏)',()=>{
     const need=e=>{ let x=0; while(C(x,e)<0.09) x+=0.001; return x; };
     const lin=need(0), cur=need(Attitude.CFG.expo);
-    assert.ok(cur>lin+0.05,`9% 輸出:線性要推 ${(lin*100).toFixed(0)}%,曲線要推 ${(cur*100).toFixed(0)}%`);
+    assert.ok(cur>lin+0.02,`9% 輸出:線性要推 ${(lin*100).toFixed(0)}%,曲線要推 ${(cur*100).toFixed(0)}%`);
   });
+});
+
+test('搖桿中心不能太鈍(使用者回報過):推 10% 至少要有 3% 的輸出',()=>{
+  assert.ok(Attitude.stickCurve(0.1)>=0.03,`推 10% 輸出 ${(Attitude.stickCurve(0.1)*100).toFixed(1)}%`);
 });
