@@ -290,8 +290,9 @@ describe('v2:roll 中性穩定、亂流幅度、跟螢幕更新率無關',()=>{
     const med=a=>a.sort((x,y)=>x-y)[a.length>>1];
     return {pitch:med(pr), roll:med(rr)};
   }
-  // v2.0.1:亂流取 v1 跟 v2 中間。同一個量法 v2 是 pitch 2.25° / roll 3.6°,v2.0.1 約 1.6° / 2.1°
-  test('不動桿時姿態會跑掉,強度在 v1 與 v2 之間(v2.0.1):pitch RMS 1.2~2.1°,坡度平均 1.2~3.2°',()=>{
+  // v2.0.1:亂流取 v1 跟 v2 中間;v2.0.2 pitch 再低一點。同一個量法 v2 是 pitch 2.25° / roll 3.6°,
+  // v2.0.1 約 1.6° / 2.1°,v2.0.2 約 1.4° / 2.1°
+  test('不動桿時姿態會跑掉,強度在 v1 與 v2 之間(v2.0.2):pitch RMS 1.2~2.1°,坡度平均 1.2~3.2°',()=>{
     const d=drift(60,30);
     assert.ok(d.pitch>1.2&&d.pitch<2.1,`pitch RMS ${d.pitch.toFixed(2)}°`);
     assert.ok(d.roll>1.2&&d.roll<3.2,`|roll| 平均 ${d.roll.toFixed(2)}°`);
