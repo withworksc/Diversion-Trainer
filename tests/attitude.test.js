@@ -27,7 +27,7 @@ describe('applyDeadzone:死區內視為 0,死區外線性重新映射不跳一�
 
 test('initialState:全部歸零,水平無亂流,高度在基準值',()=>{
   const s=Attitude.initialState();
-  assert.equal(s.pitch,0); assert.equal(s.rate,0); assert.equal(s.gust,0);
+  assert.equal(s.pitch,Attitude.CFG.pitch.trim); assert.equal(s.rate,0); assert.equal(s.gust,0);
   assert.equal(s.alt,Attitude.CFG.altBaseline); assert.equal(s.vs,0);
 });
 
@@ -41,7 +41,7 @@ test('step:沒在出題(active=false)時,亂流跟指針都會自己收斂回水
   const r=rng(1);
   let s={pitch:15,rate:0,gust:8,roll:0,heading:0,alt:2000,vs:0};
   s=run(s,400,0.05,0,false,r); // 20 秒
-  assert.ok(Math.abs(s.pitch)<0.5,`20 秒後 pitch=${s.pitch}`);
+  assert.ok(Math.abs(s.pitch-Attitude.CFG.pitch.trim)<0.5,`20 秒後 pitch=${s.pitch},應該回到平飛姿態`);
   assert.ok(Math.abs(s.gust)<0.5,`20 秒後 gust=${s.gust}`);
 });
 
@@ -55,29 +55,29 @@ test('step:停止(active=false)時是臨界阻尼,指針不會盪過水平再盪
     s=Attitude.step(s,0.05,0,false,r);
     minPitch=Math.min(minPitch,s.pitch);
   }
-  assert.ok(minPitch>-0.5,`不該過衝到負的,實際最低 ${minPitch.toFixed(2)}°`);
-  assert.ok(Math.abs(s.pitch)<0.5,`10 秒後應該停平,實際 ${s.pitch.toFixed(2)}°`);
+  assert.ok(minPitch>Attitude.CFG.pitch.trim-0.5,`不該過衝到平飛姿態以下,實際最低 ${minPitch.toFixed(2)}°`);
+  assert.ok(Math.abs(s.pitch-Attitude.CFG.pitch.trim)<0.5,`10 秒後應該回到平飛姿態,實際 ${s.pitch.toFixed(2)}°`);
 });
 
 test('step:停止後 3 秒內就要大致回到水平(不能慢慢飄)',()=>{
   const r=rng(8);
   let s={pitch:20,rate:0,gust:0,roll:0,heading:0,alt:2000,vs:0};
   for(let i=0;i<60;i++) s=Attitude.step(s,0.05,0,false,r);   // 3 秒
-  assert.ok(Math.abs(s.pitch)<2,`3 秒後 pitch=${s.pitch.toFixed(2)}°,應該已經接近水平`);
+  assert.ok(Math.abs(s.pitch-Attitude.CFG.pitch.trim)<2,`3 秒後 pitch=${s.pitch.toFixed(2)}°,應該已經接近平飛姿態`);
 });
 
 test('step:出題中(active=true)、輸入為 0 時,亂流會讓 pitch 偏離 0(不是死水一灘)',()=>{
   const r=rng(2);
   let s=Attitude.initialState();
   s=run(s,600,0.05,0,true,r); // 30 秒
-  assert.ok(Math.abs(s.pitch)>0.5,`30 秒亂流後 pitch 應該有偏移,實際 ${s.pitch}`);
+  assert.ok(Math.abs(s.pitch-Attitude.CFG.pitch.trim)>0.5,`30 秒亂流後 pitch 應該離開平飛姿態,實際 ${s.pitch}`);
 });
 
 test('step:正輸入(拉桿)持續修正,pitch 會被推向正值',()=>{
   const r=rng(3);
   let s=Attitude.initialState();
   s=run(s,200,0.05,1,true,r); // 全力拉桿 10 秒
-  assert.ok(s.pitch>3,`持續拉桿 10 秒 pitch=${s.pitch},應該明顯轉正`);
+  assert.ok(s.pitch>Attitude.CFG.pitch.trim+3,`持續拉桿 10 秒 pitch=${s.pitch},應該明顯上仰`);
 });
 
 test('step:負輸入(推桿)持續修正,pitch 會被推向負值',()=>{
@@ -109,31 +109,32 @@ test('renderSVG:回傳字串,含 svg 標籤,不會丟例外(邊界值也試一�
   }
 });
 
-describe('vsFromPitch／高度積分:姿態誤差要能反映成看得見的高度偏移',()=>{
-  test('pitch=0 時 VS=0',()=>{
-    assert.equal(Attitude.vsFromPitch(0),0);
+describe('vsFrom／高度積分:姿態誤差要能反映成看得見的高度偏移',()=>{
+  test('平飛姿態(trim)、機翼水平時 VS=0;pitch 0° 其實是在下降',()=>{
+    assert.ok(Math.abs(Attitude.vsFrom(Attitude.CFG.pitch.trim))<1e-9);
+    assert.ok(Attitude.vsFrom(0)<0);
   });
   test('正 pitch(機頭上仰)→ 正 VS(爬升)',()=>{
-    assert.ok(Attitude.vsFromPitch(10)>0);
+    assert.ok(Attitude.vsFrom(10)>0);
   });
   test('負 pitch(機頭下俯)→ 負 VS(下降)',()=>{
-    assert.ok(Attitude.vsFromPitch(-10)<0);
+    assert.ok(Attitude.vsFrom(-10)<0);
   });
   test('單一影格內,alt 的變化量等於 vs/60*dt(積分公式本身要對,不摻雜姿態動態)',()=>{
     // 注意:step() 裡 pitch 每個影格都會被配平拉力拉動,不會維持定值——這裡只驗算
     // 「給定當下的 pitch,alt 有沒有照 vs/60*dt 正確累積」這件事本身,不是測姿態動態。
     // pitch 本身這個影格也會被配平拉力微調,所以 vs 要用「這個影格算出來的新 pitch」,
     // 不是進來時的舊 pitch——跟 rate 先更新、pitch 再用新 rate 更新是同一個做法(semi-implicit)。
-    const s0={pitch:5,rate:0,gust:0,roll:0,heading:0,alt:2000,vs:Attitude.vsFromPitch(5)};
+    const s0={pitch:5,rate:0,gust:0,roll:0,heading:0,alt:2000,vs:Attitude.vsFrom(5)};
     const dt=0.05;
     const s1=Attitude.step(s0,dt,0,false,()=>0.5);
-    const expectDelta=Attitude.vsFromPitch(s1.pitch)/60*dt;
+    const expectDelta=Attitude.vsFrom(s1.pitch)/60*dt;
     assert.ok(Math.abs((s1.alt-s0.alt)-expectDelta)<1e-9,
       `一個影格 alt 變化 ${s1.alt-s0.alt},預期 ${expectDelta}`);
-    assert.equal(s1.vs,Attitude.vsFromPitch(s1.pitch));
+    assert.equal(s1.vs,Attitude.vsFrom(s1.pitch));
   });
   test('固定 pitch(繞過 step 的姿態動態)持續 5° nose-up 一分鐘,高度確實爬升到位',()=>{
-    const vs=Attitude.vsFromPitch(5); // ft/min,固定值
+    const vs=Attitude.vsFrom(5); // ft/min,固定值
     let alt=2000;
     for(let i=0;i<1200;i++) alt+=vs/60*0.05; // 60 秒
     assert.ok(Math.abs((alt-2000)-vs)<1e-6,`60 秒後應該爬升約 vs=${vs} ft,實際 ${alt-2000}`);
@@ -170,20 +171,41 @@ describe('roll 軸:跟 pitch 同一套動態,參數不同',()=>{
   });
   test('數字給 input 時只影響 pitch,roll 不動(舊呼叫方式仍相容)',()=>{
     const s=Attitude.step(Attitude.initialState(),0.05,1,true,()=>0.5);
-    assert.ok(s.pitch>0);
+    assert.ok(s.pitch>Attitude.CFG.pitch.trim);
     assert.equal(s.rollGust!==undefined,true);
   });
 });
 
-test('壓坡度不帶桿會掉高度(升力垂直分量變差)',()=>{
-  // pitch 固定 0,只有坡度不同:坡度越大,VS 越負
-  const flat={pitch:0,rate:0,gust:0,roll:0,rollRate:0,rollGust:0,heading:0,alt:2000,vs:0};
-  const bank30=Object.assign({},flat,{roll:30});
-  const bank45=Object.assign({},flat,{roll:45});
-  const vs=s=>Attitude.step(s,0.05,{pitch:0,roll:0},false,()=>0.5).vs;
-  assert.ok(Math.abs(vs(flat))<1,`機翼水平時 VS 應該≈0,實際 ${vs(flat).toFixed(0)}`);
-  assert.ok(vs(bank30)<-30,`30° 坡度應該明顯掉高,實際 ${vs(bank30).toFixed(0)} fpm`);
-  assert.ok(vs(bank45)<vs(bank30),'45° 要比 30° 掉得更快');
+describe('壓坡度不帶桿:機頭下沉、高度看得到在掉(轉彎要帶桿)',()=>{
+  // 迴歸測試:原本只模擬了「同樣姿態下要多一點攻角」這一項,30° 坡度 10 秒只掉 11 ft、
+  // 機頭完全不動,畫面上看不出來(使用者回報「沒模擬出來」)。主要效應是機頭跟著
+  // 下彎的航跡一起下沉。這裡模擬學員把坡度維持住(每格把 roll 設回去)、不帶桿。
+  const trim=Attitude.CFG.pitch.trim;
+  function holdBank(bank,pitchIn,sec){
+    let s=Attitude.initialState();
+    for(let i=0;i<sec/0.05;i++){ s.roll=bank; s.rollRate=0; s=Attitude.step(s,0.05,{pitch:pitchIn,roll:0},true,()=>0.5); }
+    return s;
+  }
+  test('機翼水平、平飛姿態:不爬不降',()=>{
+    const s=holdBank(0,0,10);
+    assert.ok(Math.abs(s.alt-3000)<1,`10 秒後高度變化 ${(s.alt-3000).toFixed(1)} ft`);
+  });
+  test('30° 坡度 10 秒:機頭沉到平飛以下 3° 以上,掉高度超過 50 ft',()=>{
+    const s=holdBank(30,0,10);
+    assert.ok(s.pitch<trim-3,`機頭應該明顯下沉,pitch=${s.pitch.toFixed(1)}°`);
+    assert.ok(3000-s.alt>50,`應該掉超過 50 ft,實際 ${(3000-s.alt).toFixed(0)} ft`);
+  });
+  test('坡度越大掉得越快(45° > 30° > 15°)',()=>{
+    const loss=b=>3000-holdBank(b,0,10).alt;
+    assert.ok(loss(45)>loss(30)&&loss(30)>loss(15),`15°/30°/45°:${[15,30,45].map(b=>loss(b).toFixed(0)).join('/')} ft`);
+  });
+  test('亂流造成的小坡度(5°)幾乎不影響高度',()=>{
+    assert.ok(3000-holdBank(5,0,10).alt<5);
+  });
+  test('30° 坡度帶一點桿,就能把高度守住',()=>{
+    const s=holdBank(30,0.045,10);
+    assert.ok(Math.abs(s.alt-3000)<20,`帶桿後 10 秒高度變化 ${(s.alt-3000).toFixed(0)} ft`);
+  });
 });
 
 describe('高度帶讀數框:百位以上大字 + 末兩位 20 ft 一格的數字鼓',()=>{
@@ -227,7 +249,7 @@ test('resetAlt:高度重設回基準值,姿態(pitch/rate/gust)不變',()=>{
   const r=Attitude.resetAlt(s);
   assert.equal(r.alt,Attitude.CFG.altBaseline);
   assert.equal(r.pitch,s.pitch); assert.equal(r.rate,s.rate); assert.equal(r.gust,s.gust);
-  assert.equal(r.vs,Attitude.vsFromPitch(s.pitch));
+  assert.equal(r.vs,Attitude.vsFrom(s.pitch));
 });
 
 test('step:pitch 頂到上限時角速度會被夾住(anti-windup),不會有「鬆桿卡住」的殘留角速度',()=>{

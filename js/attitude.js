@@ -2,8 +2,9 @@
 // 純函式、不碰 DOM、不讀搖桿——搖桿輸入由 ui.js 讀好之後當參數傳進來，這樣邏輯可以直接用
 // node:test 測、不用開瀏覽器。
 //
-// 範圍先只做 pitch 一軸（roll/heading 留著參數但固定 0），這是討論階段就講好的：
-// 先驗證「亂流model + 搖桿修正」這個機制順不順，之後再擴充到三軸。
+// 模擬 pitch 與 bank 兩軸（heading 留著欄位、固定 0）。兩軸共用同一套動態（stepAxis），
+// 另外有兩個跨軸的效應:平飛姿態是 2°(巡航攻角),以及壓坡度不帶桿機頭會下沉、掉高度。
+// 設計與調參數的依據見 docs/HANDOFF.md「姿態訓練(prototype)」一節。
 //
 // 高度／VSI 是配合姿態儀一起加的：單獨看 pitch 角度沒有切身感，接上「這個誤差角度、
 // 這個空速，幾秒鐘後會爬升／下降多少」才讓人有感——真實 G1000 PFD 上高度帶跟 VSI
@@ -25,15 +26,23 @@ var CFG = {
   // 兩個軸用同一套動態(見 stepAxis),只有參數不同。roll 的操縱力道比 pitch 大、
   // 回正力比較弱(飛機本來就是 pitch 靜穩定性比較強、滾轉比較容易被吹歪)。
   pitch: {
+    // 平飛姿態:DA40 巡航平飛時機頭約上仰 2°(使用者提供)。這 2° 是巡航攻角,所以
+    // 姿態 2° 時航跡角是 0、不爬不降(見 vsFrom)。回正力、初始值、停止時歸位都朝它。
+    trim: 2,
     limit: 25,          // deg,顯示上限(超過就是失控,先夾住不讓畫面爆開)
-    spring: 0.15,       // 1/s²,配平拉力:越偏離 0 越想被拉回去(模擬靜穩定性)
-    idleSpring: 4.0,    // 沒在出題/開關關閉時額外加的拉力,讓指針很快歸零
+    spring: 0.15,       // 1/s²,配平拉力:越偏離 trim 越想被拉回去(模擬靜穩定性)
+    idleSpring: 4.0,    // 沒在出題/開關關閉時額外加的拉力,讓指針很快歸位
     gustJitter: 6,      // deg/s²,亂流的隨機擾動強度
     gustDecay: 0.6,     // 1/s,亂流本身會自己衰減,不是永遠往同一個方向跑
     damping: 0.8,       // 1/s,角速度阻尼(跟 spring 搭起來剛好臨界阻尼)
-    controlGain: 18     // deg/s²,桿子推到底的修正力道
+    controlGain: 18,    // deg/s²,桿子推到底的修正力道
+    // 壓坡度不帶桿時機頭往下掉的力道(deg/s²,乘上負載因數多出來的部分 1/cos−1)。
+    // 升力傾斜後垂直分量不夠撐住重量,航跡往下彎,機頭跟著航跡往下沉——這是「轉彎要
+    // 帶桿」要練的東西,也是學員要在姿態儀上看得到的。值是跑模擬調的:30° 坡度不帶桿,
+    // 機頭約沉到平飛下方 5°、掉高約 1000 fpm;亂流造成的 ±5° 小坡度幾乎沒影響。
+    bankDrop: 5
   },
-  // roll 的參數是跑模擬調出來的(見 docs/HANDOFF.md):不操作時 60 秒漂 ±4~5°,
+  // roll 的參數是跑模擬調出來的(見 docs/HANDOFF.md 姿態訓練一節):不操作時 60 秒漂 ±4~5°,
   // 跟 pitch 同一個量級;滿桿 1.5 秒約 22° 坡度。原本 gain 45 太靈敏(滿桿 1.5 秒
   // 就 38°),小修正很難拿捏;spring 也從 0.08 提到 0.18 讓它會慢慢自己回平,
   // 配 damping 0.85 剛好臨界阻尼,不會左右擺盪。
@@ -49,8 +58,6 @@ var CFG = {
 
   tasKt: 115,           // kt,算 VS 用的假設空速(跟這個工具其他地方的巡航速度量級一致)
   ktToFpm: 101.3,       // 1 kt 的下滑/爬升分量換算成 ft/min 的係數
-  bankSinkFpm: 420,     // fpm,坡度造成的掉高係數:升力的垂直分量隨 1/cos(bank) 變差,
-                        // 壓坡度不帶桿就會掉高——這正是這個練習要讓人有感的地方
   // 起始高度 3000 ft,altitude bug 也設在 3000(使用者指定)——學員要守的就是出題那一刻
   // 的高度,所以 bug 跟起始高度是同一個值,不另外設。跟主工具的改降高度是兩回事。
   altBaseline: 3000,
@@ -85,7 +92,7 @@ function applyDeadzone(x){
 }
 
 function initialState(){
-  return {pitch:0, rate:0, gust:0,
+  return {pitch:CFG.pitch.trim, rate:0, gust:0,
           roll:0, rollRate:0, rollGust:0,
           heading:0, alt:CFG.altBaseline, vs:0};
 }
@@ -95,7 +102,7 @@ function initialState(){
 function resetAlt(state){
   var s=clone(state);
   s.alt=CFG.altBaseline;
-  s.vs=vsFromPitch(s.pitch);
+  s.vs=vsFrom(s.pitch,s.roll);
   return s;
 }
 
@@ -105,16 +112,28 @@ function clone(state){
   return Object.assign({}, state);
 }
 
-// 簡化模型:VS(ft/min) = TAS(kt) × sin(pitch) × 101.3。真實下滑角還要看功率、重量、
-// 風,這裡只是要讓「姿態錯多少、高度掉多快」有個數量級對得上的直覺,不是精確換算。
-function vsFromPitch(pitchDeg){
-  return CFG.tasKt*Math.sin(pitchDeg*D)*CFG.ktToFpm;
+// 坡度的負載因數多出來的部分:1/cos(bank) − 1。0° 時是 0,30° 約 0.15,45° 約 0.41。
+// 夾在 ±80° 避免接近 90° 時爆掉(roll 本身限制在 ±60°,這只是防呆)。
+function loadExcess(rollDeg){
+  return 1/Math.cos(clamp(rollDeg,-80,80)*D) - 1;
 }
 
-// 單一軸的動態:亂流(會自我衰減的隨機漫步)+ 回正力 + 阻尼 + 操縱輸入。
+// 垂直速度。航跡角 = pitch 姿態 − 攻角;平飛時攻角約等於 trim(2°),坡度時要撐住重量
+// 需要的攻角變成 trim/cos(bank)。所以:
+//   VS(ft/min) = TAS(kt) × sin(pitch − trim/cos(bank)) × 101.3
+// 姿態 2°、機翼水平 → VS=0。真實情況還要看功率、重量、風,這裡只是要讓「姿態錯多少、
+// 高度掉多快」有個數量級對得上的直覺,不是精確換算。
+function vsFrom(pitchDeg,rollDeg){
+  var aoa=CFG.pitch.trim*(1+loadExcess(rollDeg||0));
+  return CFG.tasKt*Math.sin((pitchDeg-aoa)*D)*CFG.ktToFpm;
+}
+
+// 單一軸的動態:亂流(會自我衰減的隨機漫步)+ 回正力 + 阻尼 + 操縱輸入 + 外力。
 // pitch 跟 roll 共用這一套,只有 CFG 參數不同——不要為了第二個軸複製一份。
-// ax:{value,rate,gust};k:CFG.pitch 或 CFG.roll。回傳新的 {value,rate,gust}。
-function stepAxis(ax,dt,ctl,active,rnd,k){
+// ax:{value,rate,gust};k:CFG.pitch 或 CFG.roll(回正的目標是 k.trim,沒設就是 0);
+// extra:其他軸帶來的角加速度(deg/s²),目前只有「坡度讓機頭下沉」用到。
+// 回傳新的 {value,rate,gust}。
+function stepAxis(ax,dt,ctl,active,rnd,k,extra){
   // 亂流本身是會自己衰減的隨機漫步,不是白噪音——不然每個影格都獨立亂跳,畫面上
   // 只會看到抖動,不會有「要顧著修正」的漂移感。衰減乘數要夾住下限:dt 大或
   // gustDecay 調高時,不夾住乘數會變負值,亂流會反過來越滾越大。
@@ -128,7 +147,8 @@ function stepAxis(ax,dt,ctl,active,rnd,k){
   // 會變成嚴重欠阻尼(ζ≈0.2),指針像單擺一樣盪過水平再盪回來,十幾秒才停。
   // 所以閒置時改用臨界阻尼 2√spring,直接、不過衝地回到水平。
   var damping = active ? k.damping : 2*Math.sqrt(spring);
-  var rate = ax.rate + ((active?gust:0) - ax.value*spring + ctl*k.controlGain)*dt;
+  var push = active ? gust + ctl*k.controlGain + (extra||0) : 0;
+  var rate = ax.rate + (push - (ax.value-(k.trim||0))*spring)*dt;
   rate *= Math.max(0, 1-damping*dt);
   var next = ax.value + rate*dt;
   // 撞到上下限時把角速度也夾住(anti-windup):不然桿子頂在限制上時 rate 會繼續累積,
@@ -149,17 +169,19 @@ function step(state,dt,input,active,rnd){
           : (typeof input==='number') ? {pitch:input,roll:0}
           : {pitch:input.pitch||0, roll:input.roll||0};
 
+  // 坡度讓機頭下沉:用「這一格開始時」的坡度算,跟 rate 先更新、角度再更新是同一個做法
   var p = stepAxis({value:s.pitch, rate:s.rate, gust:s.gust},
-                   dt, active?clamp(inp.pitch,-1,1):0, active, rnd, CFG.pitch);
+                   dt, active?clamp(inp.pitch,-1,1):0, active, rnd, CFG.pitch,
+                   -CFG.pitch.bankDrop*loadExcess(s.roll||0));
   s.pitch=p.value; s.rate=p.rate; s.gust=p.gust;
 
   var r = stepAxis({value:s.roll, rate:s.rollRate||0, gust:s.rollGust||0},
                    dt, active?clamp(inp.roll,-1,1):0, active, rnd, CFG.roll);
   s.roll=r.value; s.rollRate=r.rate; s.rollGust=r.gust;
 
-  // 垂直速度 = pitch 的分量 − 坡度造成的掉高。壓了坡度不帶桿就會掉高度,這是這個
-  // 練習最想讓人有感的其中一件事,所以 roll 不只是畫面上轉一轉,會真的反映在高度上。
-  s.vs = vsFromPitch(s.pitch) - CFG.bankSinkFpm*(1/Math.cos(clamp(s.roll,-80,80)*D) - 1);
+  // 坡度影響高度有兩條路,都在上面:機頭下沉(stepAxis 的 extra),以及同樣姿態下需要
+  // 更多攻角(vsFrom 的 trim/cos)。前者是主要、看得到的那一個;後者很小。
+  s.vs = vsFrom(s.pitch,s.roll);
   s.alt = s.alt + s.vs/60*dt;
 
   return s;
@@ -168,7 +190,7 @@ function step(state,dt,input,active,rnd){
 /* ---------- G1000 風格姿態儀 + 高度帶／VSI ---------- */
 // 姿態儀 viewBox 240×240,中心 (120,120)。G1000 的 PFD 姿態儀本身是方形面板,不是
 // 圓形錶面——只有 roll 刻度那段弧線是彎的,不要整個做成圓形儀表(那是機械式 AI 的長相)。
-// 高度帶／VSI 接在右邊,共用同一張 SVG,寬度加到 340。
+// 高度帶／VSI 接在右邊,共用同一張 SVG,整張寬 PFD.w(見上方版面常數)。
 
 // 天地線＋pitch ladder,畫在自己的局部座標系(0,0 = 姿態水平時的天地線),
 // 外層再用 translate(120,120) 搬到面板中心——不要把「120」寫進這個函式裡面,
@@ -409,5 +431,6 @@ function renderSVG(state){
 }
 
 return {CFG:CFG, applyDeadzone:applyDeadzone, initialState:initialState, resetAlt:resetAlt,
-  vsFromPitch:vsFromPitch, step:step, renderSVG:renderSVG, altDigits:altDigits, vsReadout:vsReadout};
+  vsFrom:vsFrom, loadExcess:loadExcess, step:step, renderSVG:renderSVG,
+  altDigits:altDigits, vsReadout:vsReadout};
 });

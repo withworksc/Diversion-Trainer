@@ -11,6 +11,11 @@
   --red:#A8201A;
   --amber:#B26A00;
   --green:#1E7A4D;
+  /* 上排的高度:地圖格用它當高度(寬度照航圖比例 376:436 自己算出來),
+     SITUATION 跟姿態儀再被拉到同一個高度。螢幕越寬上排越高,上下限 420–560。 */
+  --top-h:clamp(420px, 26vw + 140px, 560px);
+  /* 姿態開著、三欄並排時 SITUATION 的欄寬 */
+  --sit-w:280px;
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
@@ -21,7 +26,7 @@ body{
   font-variant-numeric:tabular-nums;
   -webkit-text-size-adjust:100%;
 }
-.wrap{max-width:1180px;margin:0 auto;padding:22px 20px 70px}
+.wrap{max-width:1600px;margin:0 auto;padding:22px 20px 70px}
 
 header.top{
   display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
@@ -50,55 +55,121 @@ select,input[type=text]{
 }
 label.inline{font-size:13px;color:var(--ink-soft);display:flex;align-items:center;gap:7px}
 
-.cols{display:grid;grid-template-columns:400px 1fr;gap:26px;align-items:start}
-@media(max-width:920px){.cols{grid-template-columns:1fr}}
-
-/* 姿態訓練(prototype)開著時,.cols 多一欄放在最右邊(見 js/ui.js 的開關) */
-.cols.att-on{grid-template-columns:400px 1fr 360px}
-@media(max-width:920px){.cols.att-on{grid-template-columns:1fr}}
-
-/* 姿態訓練(prototype)——跟 .brief 同一個視覺語言,但用點虛線邊框跟正式內容區隔開 */
-.attitude{border:2px dashed var(--rule-hard);background:var(--paper-2)}
-.attitude h2{
-  margin:0;font-size:12px;font-weight:700;letter-spacing:.09em;
-  background:var(--ink-soft);color:#F4F0E4;padding:6px 11px;
+/* ---------- 版面:上排 .cols(SITUATION/平面圖/姿態儀)+ 下排 .sheet(八格程序) ----------
+   手機(≤920)全部直排。桌面分三種排法,由 js/ui.js 的姿態開關在 .cols 加上 att-on 切換:
+   · 姿態關著:SITUATION 吃掉地圖以外的寬度(內容自動改成方格排,見 .brief 的 @container)
+   · 姿態開著、921–1569:SITUATION 攤成橫帶在上,地圖 + 姿態儀並排在下
+   · 姿態開著、≥1570:三欄——SITUATION 窄欄、地圖照比例、姿態儀拿剩下的
+   三欄的門檻是量出來的:姿態儀在橫帶排法下受高度限制、在三欄下受寬度限制(說明文字也
+   從兩行變三行),三欄要到約 1560 寬才追得上橫帶的尺寸(1440:橫帶 649 寬 vs 三欄 600)。
+   門檻放在 1570,視窗拉寬時姿態儀只會變大、不會在切換的那一刻縮小。 */
+.cols{display:grid;grid-template-columns:minmax(0,1fr);gap:20px}
+@media(min-width:921px){
+  .cols{grid-template-columns:minmax(0,1fr) auto}
+  .cols.att-on{grid-template-columns:auto minmax(0,1fr);grid-template-areas:"brief brief" "map att"}
+  .cols.att-on .brief{grid-area:brief}
+  .cols.att-on .mapcell{grid-area:map}
+  .cols.att-on .attitude{grid-area:att}
 }
+@media(min-width:1570px){
+  .cols.att-on{grid-template-columns:var(--sit-w) auto minmax(0,1fr);grid-template-areas:"brief map att"}
+}
+
+/* 上排三格共用的標題列 */
+.brief h2,.mapcell h2,.attitude h2{
+  margin:0;font-size:12px;font-weight:700;letter-spacing:.09em;
+  background:var(--accent);color:#F4F0E4;padding:6px 11px;
+}
+
+/* 平面圖格:桌面版用 --top-h 定高度、寬度照航圖比例,整排的高度就是從這裡來的 */
+.mapcell{border:2px solid var(--accent);background:var(--paper-2)}
+@media(min-width:921px){.mapcell .mapwrap{width:auto;height:var(--top-h)}}
+.map-idle{display:flex;align-items:center;justify-content:center}
+.map-idle span{font-size:13px;color:var(--ink-soft)}
+/* 手機直排時不用佔住整張地圖的高度,出題前留一條就好 */
+@media(max-width:920px){.map-idle{aspect-ratio:auto;height:88px}}
+
+/* 姿態訓練(prototype)——跟 .brief 同一個視覺語言,但用點虛線邊框跟正式內容區隔開。
+   整格被拉到上排的高度,#aiHost 吃掉標題跟說明以外的空間;SVG 絕對定位、不撐高度,
+   靠 viewBox(預設 xMidYMid meet)在黑底裡等比例放到最大、置中。 */
+.attitude{border:2px dashed var(--rule-hard);background:var(--paper-2);display:flex;flex-direction:column;min-width:0}
+.attitude[hidden]{display:none}
+.attitude h2{background:var(--ink-soft)}
 .attitude h2 .beta{font-weight:400;opacity:.75;margin-left:6px}
-#aiHost{padding:14px;display:flex;justify-content:center;background:#0B0F12;overflow-x:auto}
-#aiHost svg{width:100%;max-width:360px;height:auto;display:block}
+#aiHost{position:relative;flex:1 1 auto;min-height:240px;background:#0B0F12}
+#aiHost svg{position:absolute;top:14px;left:14px;width:calc(100% - 28px);height:calc(100% - 28px);display:block}
 /* 搖桿狀態列會印兩行(裝置名稱 + 即時軸值),用等寬字讓數字跳動時不會整行抖 */
 .ai-note{margin:0;padding:9px 12px;font-size:11.5px;color:var(--ink-soft);line-height:1.6;
   white-space:pre-line;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 .ghost-toggle[aria-pressed="true"]{background:var(--accent);color:#F4F0E4;border-color:var(--accent)}
 
+/* 姿態開關旁的瀏覽器提醒。偵測到 Safari 時(js/ui.js 加上 .warn)改成警示色。
+   文字拆成兩段、各自不斷行,只會在分號後面換行:按鈕旁邊放得下一整句就一行;放得下較長
+   那段就留在按鈕旁、在分號後折成兩行;連那段都放不下才整塊掉到按鈕下一行、靠左。
+   (flex-basis 0 + min-width:min-content:換不換行看的是較長那段的寬度,不是整句)
+   左邊一條細線讓它不管在哪一行都看得出是附註,不像跑版。 */
+.att-hint{font-size:12px;color:var(--ink-soft);line-height:1.45;flex:1 1 0;min-width:min-content;
+  border-left:2px solid var(--rule);padding:1px 0 1px 9px}
+.att-hint span{white-space:nowrap}
+.att-hint.warn{color:var(--red);font-weight:600;border-left-color:var(--red)}
+.att-hint.warn span:first-child::before{content:"⚠ "}
+
 /* prototype 限定桌面/平板——手機版本來就緊繃,先不塞這個 */
-@media(max-width:920px){#attToggle,.attitude{display:none}}
+@media(max-width:920px){#attToggle,.att-hint,.attitude{display:none}}
 
 /* scenario block — styled after a VFR chart aerodrome data box */
-.brief{border:2px solid var(--accent);background:var(--paper-2)}
 .mapwrap{position:relative;width:100%;aspect-ratio:376/436;overflow:hidden;
-  background:#CFE0E7;border-top:2px solid var(--accent);contain:paint}
+  background:#CFE0E7;contain:paint}
 .chartbg{position:absolute;max-width:none;display:block}
 .mapfg{position:absolute;inset:0;width:100%;height:100%;display:block}
 .mapfg text{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;paint-order:stroke;stroke:#F4F0E4;stroke-width:2.5px;stroke-linejoin:round}
-.brief h2{
-  margin:0;font-size:12px;font-weight:700;letter-spacing:.09em;
-  background:var(--accent);color:#F4F0E4;padding:6px 11px;
-}
-.brief dl{margin:0;padding:4px 0}
-.brief .row{display:flex;gap:10px;padding:7px 12px;border-bottom:1px solid var(--rule)}
+/* 格子寬度不到 480(三欄時的窄欄、手機)一列一列;被拉高時各列平均分掉多出來的高度,橫線保持等距 */
+.brief{border:2px solid var(--accent);background:var(--paper-2);display:flex;flex-direction:column;
+  container-type:inline-size}
+.brief dl{margin:0;padding:4px 0 0;flex:1 0 auto;display:flex;flex-direction:column}
+.brief .row{display:flex;gap:10px;padding:7px 12px;border-bottom:1px solid var(--rule);flex:1 0 auto}
 .brief .dest{background:var(--panel-sea)}
 .brief .row:last-child{border-bottom:none}
 .brief dt{flex:0 0 78px;font-size:11.5px;color:var(--ink-soft);padding-top:3px}
 .brief dd{margin:0;flex:1;font-size:17px;font-weight:600;line-height:1.35}
 .brief dd small{display:block;font-size:12px;font-weight:400;color:var(--ink-soft);margin-top:2px}
+.brief dd.nil{color:var(--rule-hard);font-weight:400}
 .brief .dest dd{color:var(--hot);font-size:20px}
+.brief .dest dd.nil{color:var(--rule-hard)}
 .brief .sit{padding:11px 12px;background:#FDF7E3;border-top:2px solid var(--accent);font-size:14px;line-height:1.55}
-.brief dl{padding-bottom:0}
 .brief .sit b{display:block;font-size:11.5px;color:var(--ink-soft);font-weight:600;margin-bottom:3px}
+/* 寬的時候(姿態關著、或是被攤成橫帶)改成 3×2 方格,字跟著格子寬度放大;
+   格子被拉高時數值在標題下方的空間裡垂直置中,不會全部擠在格子頂端 */
+@container (min-width:480px){
+  .brief dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:1fr;padding:0}
+  .brief .row{flex-direction:column;gap:4px;padding:10px 14px 14px;border-right:1px solid var(--rule)}
+  .brief .row:nth-child(3n){border-right:none}
+  .brief .row:nth-last-child(-n+3){border-bottom:none}
+  .brief dt{flex:none;padding-top:0}
+  .brief dd{flex:none;margin:auto 0;font-size:clamp(18px,2.9cqi,30px);line-height:1.3}
+  .brief dd small{font-size:13px;margin-top:4px}
+  .brief .dest dd{font-size:clamp(20px,3.2cqi,33px)}
+  .brief .sit{font-size:15px}
+}
+/* 空白版「位置」多出來的佔位行(見 js/compute.js 的 briefBlankHTML),平常不佔空間 */
+.brief dd .ph{display:none}
+/* 姿態開著、攤成橫帶時(921–1569,三欄門檻以下):六格一排、字不跟著放大,把高度留給下面的
+   地圖跟姿態儀。橫帶的高度出題前後、題目跟題目之間都不能變,不然下面整塊會跟著跳:
+   · 欄寬照內容加權——「位置」最長(HENGCHUN 113.7 / R-011 / 21 DME / 達仁外海),其他格短;
+     在最窄的 921 量過 400 題,每格最長的內容都還留 20px 以上
+   · 每格不換行,行數就固定:位置三行、剩油兩行、其他一行
+   · 空白版的「位置」用 .ph 佔住同樣三行 */
+@media(min-width:921px) and (max-width:1569px){
+  .cols.att-on .brief dl{grid-template-columns:.8fr 1.6fr 1fr 1fr 1.15fr 1.2fr}
+  .cols.att-on .brief .row{border-bottom:none;border-right:1px solid var(--rule);padding:9px 12px 11px}
+  .cols.att-on .brief .row:last-child{border-right:none}
+  .cols.att-on .brief dd{font-size:18px;white-space:nowrap}
+  .cols.att-on .brief .dest dd{font-size:20px}
+  .cols.att-on .brief dd .ph{display:inline;visibility:hidden}
+}
 
-/* answer checklist */
-.sheet{border-top:2px solid var(--accent)}
+/* answer checklist — 手機一格一格往下排;桌面版見下面的橫排 */
+.sheet{border-top:2px solid var(--accent);margin-top:26px}
 .item{border-bottom:1px solid var(--rule);padding:13px 0 13px 44px;position:relative}
 .item .num{
   position:absolute;left:0;top:13px;width:27px;height:27px;
@@ -122,6 +193,41 @@ table.legs th,table.legs td{border-bottom:1px solid var(--rule);padding:4px 9px 
 table.legs th{font-size:11px;color:var(--ink-soft);font-weight:600}
 table.legs td.n{text-align:right;padding-right:16px}
 table.legs tr.tot td{border-top:1.5px solid var(--accent);border-bottom:none;font-weight:700}
+
+/* 桌面版:八格橫排。921–1439 排成兩排各 4 格,≥1440 一排 8 格(再窄的話「高度」那格的
+   說明會被擠到十幾行,讀起來比兩排各 4 格差)。
+   每格用 subgrid 分成「標題」「答案」兩列,同一排的答案頂端會對齊,不會因為英文副標
+   換行數不同而高低不一。 */
+@media(min-width:921px){
+  .sheet{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-bottom:1px solid var(--rule)}
+  .item{grid-row:span 2;display:grid;grid-template-rows:subgrid;row-gap:0;align-content:start;
+    padding:12px 14px 16px;border-bottom:none;border-left:1px solid var(--rule);min-width:0}
+  .item:nth-child(4n+1){border-left:none}
+  .item:nth-child(-n+4){border-bottom:1px solid var(--rule)}
+  .item .num{left:14px;top:12px}
+  .item h3{padding-left:37px;min-height:27px}
+  .item .en{display:block;margin-left:0;line-height:1.35;margin-top:1px}
+  .item .ans{overflow-x:auto}
+  /* 欄寬窄,大字答案別在「落地剩」「R-242」這種地方中間斷開:中文只在空白/標點斷行,
+     <em> 包的那一段整塊換行;真的塞不下才退回任意斷行 */
+  .item .big{word-break:keep-all;overflow-wrap:anywhere}
+  .item .big em{display:inline-block}
+  .item .blank{max-width:none;height:52px;position:relative}
+  .item .blank::before{content:"";position:absolute;left:0;right:0;top:0;height:26px;border-bottom:1px dotted var(--rule-hard)}
+  table.legs{font-size:12px}
+}
+@media(min-width:1440px){
+  .sheet{grid-template-columns:repeat(8,minmax(0,1fr))}
+  .item:nth-child(n){border-left:1px solid var(--rule);border-bottom:none;padding:12px 11px 16px}
+  .item:first-child{border-left:none}
+  .item .num{left:11px}
+  .item h3{font-size:14px;padding-left:34px}   /* 「所需與剩餘油量」七個字要塞得進一行 */
+  .item .big{font-size:18px}
+  .item .note{font-size:12.5px}
+  table.legs{font-size:11.5px}
+  table.legs th,table.legs td{padding:3px 5px 3px 0}
+  table.legs td.n{padding-right:6px}
+}
 
 .hidden{display:none}
 .tip{font-size:12.5px;color:var(--ink-soft);margin-top:20px;line-height:1.7;border-top:1px solid var(--rule);padding-top:12px}

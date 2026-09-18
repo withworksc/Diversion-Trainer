@@ -26,6 +26,9 @@
 
 出題同時開始計時，按「顯示答案」停表：3 分鐘內綠色、3–5 分鐘琥珀色、超過 5 分鐘紅色。
 
+另外有一個還在 prototype 階段的功能：**姿態訓練**——一邊算改降、一邊用搖桿守住亂流中的
+姿態與高度。見 §12。
+
 ---
 
 ## 2. 領域資料 —— 重建成本最高的部分
@@ -149,11 +152,13 @@ js/geo.js            導航數學 + 顯示用 Mercator 投影（純函式，無�
 js/data.js            CHAIN／VOR／AD／WPT／走廊，載入時做離岸平移（依賴 geo.js）
 js/scenario.js        出題:makePos／pickDest／makeScenario／crossesRidge（依賴 geo+data）
 js/map.js             平面圖 SVG + 底圖定位（依賴 geo+data）
-js/compute.js          答案模型:compute() 算數字，briefHTML/answers 組字串（依賴以上全部）
-js/ui.js               render()、碼表、事件綁定 —— 唯一碰 DOM 的檔案
+js/compute.js          答案模型:compute() 算數字，briefHTML/answers 組字串（依賴 geo+data+scenario）
+js/attitude.js         姿態訓練(prototype):兩軸動態 + G1000 PFD 的 SVG(純函式,無其他依賴,見 §12)
+js/ui.js               render()、碼表、事件綁定、搖桿輸入 —— 唯一碰 DOM 的檔案
 assets/chart-south.png 底圖裁切（外部檔案，不是 base64）
 assets/chart-south.json 底圖的經緯度範圍 + 擬合殘差(供 tools/make_chart.py 參考,頁面本身不讀取)
 tools/make_chart.py    重新產生底圖用(需要 pymupdf、pillow)
+tools/gamepad-test.html 搖桿偵測頁:印出瀏覽器回報的原始裝置與每一軸的即時值(見 §12.4)
 tests/*.test.js         自動化測試(node:test)
 tests/report.js         抽樣出題表 + 統計,給人看合不合理
 docs/HANDOFF.md         這份文件
@@ -161,8 +166,9 @@ docs/HANDOFF-original.md 從 Chat 交接過來的原始版本(封存,已移除�
 package.json            只有 scripts,沒有 dependencies
 ```
 
-**依賴方向**：`geo → data → scenario → map → compute → ui`。`js/compute.js` 依賴
-`js/map.js`（`briefHTML()` 內嵌 `mapSVG()` 的輸出），其餘照這個順序在 `index.html` 用
+**依賴方向**：`geo → data → scenario → map → compute → ui`。`js/compute.js` 已經不依賴
+`js/map.js`——平面圖在上排有自己的格子，由 `js/ui.js` 直接呼叫 `mapSVG()` 寫進 `#map`，
+`briefHTML()` 只組 SITUATION。其餘照這個順序在 `index.html` 用
 `<script>` 依序載入。
 
 **每個模組同一個 UMD 包法**（跟另一個專案 VOR / HSI Radial Trainer 的 `nav.js` 同一個
@@ -258,9 +264,9 @@ ES modules 會被 CORS 擋掉，工具要能直接點兩下 `index.html` 開啟�
 §2.1）。
 
 ```bash
-npm test          # 53 項自動化測試：geo/data/scenario/compute 各一份
+npm test          # 自動化測試:geo/data/scenario/compute/attitude 各一份
 npm run report    # 抽樣題目 + 兩萬題統計，用飛行員的角度看合不合理
-npm start         # 本機預覽 http://localhost:8766
+npm start         # 本機預覽 http://localhost:8766(注意:會被瀏覽器快取,見 §12.5)
 ```
 
 `npm test` 涵蓋：
@@ -272,6 +278,9 @@ npm start         # 本機預覽 http://localhost:8766
   `crossesRidge` 的每一種規則、`makeScenario` 的欄位範圍（2 萬題）。
 - `compute.js`：油量算式、ETA 進位（跨 60 分、跨午夜）、`r.multi` 恆為 false、HOLD/TURN
   切換、MSA 提示、日間限定警語、油量不足警告。
+- `attitude.js`：搖桿死區、兩軸的方向/夾限/回正不過衝(臨界阻尼)、anti-windup、固定種子
+  重現同一段亂流、平飛 2° 時 VS=0、坡度不帶桿機頭下沉並掉高度(帶一點桿救得回來)、
+  高度讀數框的大字與數字鼓對齊、VS 取到 50 fpm。搖桿讀取與畫面在 `ui.js`,要開瀏覽器測。
 
 ## 10. 部署
 
@@ -295,3 +304,131 @@ Branch: main / (root)
 - [ ] 導航與領域邏輯只在 `js/geo.js`／`js/data.js`／`js/scenario.js`／`js/compute.js`，
       `js/ui.js` 沒有自己算
 - [ ] 仍無外部依賴、無 build，直接點開 `index.html` 可用（`file://` 下測一次）
+- [ ] 改過 `js/attitude.js` 的手感參數 → 重跑 §12.2 那張表的數字(維持坡度 10 秒掉多少、
+      亂流 60 秒漂多少),跟表對一下;畫面在 Chrome 裡看,不要用 cairosvg 轉出來的圖判斷字
+
+---
+
+## 12. 姿態訓練(prototype)
+
+### 12.1 這是什麼
+
+改降的時候學員是低頭算板子,但飛機還在飛——這個功能要練的是「算的同時姿態跟高度不能
+跑掉」。按「姿態訓練(prototype)」打開(預設關閉、手機版整個隱藏),出題後開始有亂流,
+姿態儀、高度帶、VSI 會一起漂,學員用搖桿(或方向鍵)修正;按「顯示答案」後指針回到
+平飛姿態。高度是這個小模擬自己的值(起始 3000 ft,altitude bug 也在 3000),跟主工具
+改降情境裡的高度無關。
+
+分工照整個專案的規則:`js/attitude.js` 是純函式(動態 + 畫 SVG 字串),`js/ui.js` 負責
+讀搖桿、跑 `requestAnimationFrame` 迴圈、把 SVG 寫進 `#aiHost`。
+
+### 12.2 模型
+
+兩軸(pitch、bank)共用 `stepAxis()`:會自我衰減的隨機漫步當亂流 + 朝 trim 的回正力 +
+阻尼 + 操縱輸入。heading 只留了欄位、沒有模擬。幾個容易改壞的地方:
+
+- **閒置時用臨界阻尼 `2√spring`。** 閒置時回正力加大卻沿用原本的阻尼,會變成嚴重欠阻尼,
+  按「顯示答案」後指針像單擺一樣來回盪十幾秒。有迴歸測試。
+- **anti-windup**:姿態頂到上限時角速度也歸零,不然反向修正時會「卡住」一下。
+- **平飛姿態 2°**(使用者提供,DA40 巡航)。那 2° 是巡航攻角,所以
+  `VS = TAS × sin(pitch − 2°/cos(bank)) × 101.3`:姿態 2°、機翼水平時不爬不降。
+- **壓坡度不帶桿機頭會下沉**:pitch 多一項角加速度 `−bankDrop × (1/cos(bank) − 1)`。
+  最早的版本只做了「同樣姿態要多一點攻角」那一項,30° 坡度 10 秒只掉 11 ft、機頭不動,
+  使用者回報「沒模擬出來」。現在的數字(`rnd` 固定、每格把坡度設回去):
+
+  | 情況 | 10 秒後 |
+  |---|---|
+  | 機翼水平、平飛姿態 | 高度不變 |
+  | 坡度 5°(亂流的範圍) | 掉約 2 ft |
+  | 坡度 30° 不帶桿 | pitch −2.5°、VS 約 −975、掉約 97 ft |
+  | 坡度 45° 不帶桿 | pitch −10°、掉約 260 ft |
+  | 坡度 30°、帶約 12% 的桿 | 掉約 6 ft |
+
+- **roll 手感**:不操作 60 秒漂 ±4~5°(跟 pitch 同量級);滿桿 1.5 秒約 22° 坡度。
+  最早 gain 45 太靈敏(1.5 秒就 38°)。
+- 所有參數都是手感參數,不是量出來的。之後接實體搖桿讓教官試飛再調。
+
+### 12.3 畫面(照使用者提供的 G1000 照片與手繪)
+
+`js/attitude.js` 的 `renderSVG()`,viewBox 346×240:左邊 240×240 是姿態儀(姿態中心
+120,120),右邊是高度帶與 VSI。
+
+- **方形面板**,不是機械式的圓形錶面。天空/地面一路延伸到高度帶底下。
+- **pitch 刻度**:2.5° 最短、5° 中等、10° 最長且兩邊標數字;線是打通的一條,不留缺口、
+  不加端點(使用者更正過)。
+- **pitch 刻度另外套一層 clip(`ladderClip`,y ≥ 42)**,不管 pitch 怎麼飄都不會爬進 bank
+  指標的範圍。這是 QC 抓到的真問題(pitch −2°~−25° 之間 ladder 會疊到 bank 刻度)的根本
+  解法;先前把 bank 刻度縮小、上移只是硬閃,而且程式註解還寫成「不會疊到」,是錯的。
+- **bank 指標**:繞姿態中心、半徑 100 的連續實線弧(±60°),刻度在 10/20/30/45/60°,
+  30° 與 60° 較長。弧頂上方實心倒三角形是固定的 0° 基準;下方正三角形 + 小橫條是 roll
+  指標與側滑指示,會跟著 roll 轉——**轉的方向沒有跟真機確認過**(見 §12.6)。
+- **機身符號**:兩片很薄的實心黃色刀刃,尖端在姿態中心、往外往下斜張,最寬處在翼尖那
+  一端(照使用者手繪 IMG_0354)。兩側黃色短橫桿對齊尖端高度(不是翼尖,使用者更正過)。
+- **高度帶**:半透明、白色細框;刻度在左緣(100 ft 長、20 ft 短);中央讀數框左邊尖角
+  指著刻度,百位以上大字 + 末兩位 20 ft 一格的捲動數字鼓,大字跟數字鼓用同一個「最接近
+  的 20 ft」當中心所以不會錯位;上方黑框放青色 bug 圖示與選定高度,下方黑框 1013 HPA;
+  左緣青色 altitude bug(超出範圍就停在邊上)、洋紅 6 秒趨勢線。
+- **VSI**:右緣在 0 的位置有 V 形缺口;±1000/±2000 標 1、2;數值框取到 50 fpm,
+  |VS| < 100 時只剩箭頭。
+- 畫面有變才重畫(`ui.js` 的 `attRenderKey`),不然每個影格都整張 innerHTML 重建。
+
+### 12.4 搖桿
+
+- Gamepad API;**ax0 = 坡度、ax1 = pitch**(操縱桿慣例,不用取反)。
+- **瀏覽器在使用者按過搖桿按鈕之前不會把裝置交出來**(防指紋追蹤),只推桿沒用。
+- **Safari 讀不到飛行搖桿,要用 Chrome / Edge / Brave。** 在使用者的 Mac 上實測:
+  macOS 認得 Thrustmaster HOTAS Warthog(`ioreg`:Product「Joystick - HOTAS Warthog」、
+  VendorID 0x44F、PrimaryUsage 4 = Joystick),不需要驅動;Chrome 讀得到;Safari 讀
+  不到,連網路上的 joystick tester 也一樣。**確切是 WebKit 哪一條規則擋掉的沒有追到**——
+  之前一個 commit message 寫成「Safari 完全不吃 HID 搖桿」說得太絕對,以這裡為準。
+  iPad 上所有瀏覽器底層都是 WebKit,很可能都讀不到。姿態開關旁邊有提醒文字,偵測到
+  Safari 時會變紅,狀態列也會直接叫人改用 Chrome。
+- **HOTAS 常是兩個獨立裝置**(搖桿 + 油門座),`pickPad()` 先排除 throttle/rudder/pedal/
+  quadrant/panel 等,再優先挑名字像搖桿的(joystick/stick/hotas/airbus/a320/pilot/yoke…)。
+  Airbus 側桿(Thrustmaster TCA)實際回報的名稱沒有實機確認過。
+- 姿態儀下方的狀態列會印出抓到的裝置名稱與前四軸即時值;更底層的問題用
+  `tools/gamepad-test.html` 查,它跟主程式無關,只印瀏覽器回報的原始資料。
+- 沒有搖桿時用方向鍵:↑↓ pitch、←→ 坡度(↑ = 推桿機頭向下,跟飛行模擬器一致)。
+
+### 12.5 測試時踩過的坑
+
+- **瀏覽器快取**:`python3 -m http.server` 不送 no-cache,瀏覽器會一直跑舊的 JS,改了
+  看不到效果、還會以為是程式壞了(這個專案踩過兩次)。測試時用強制重新整理
+  (Cmd+Shift+R),或自己起一個送 `Cache-Control: no-store` 的 server。
+- **cairosvg 不支援 `paint-order`**:轉出來的 pitch 刻度數字會變成黑色一團。判斷字的樣子
+  只看瀏覽器截圖。
+
+### 12.6 未決問題
+
+1. **roll 指標的轉向**:現在是右坡度 → 指標往右。機械式 sky pointer 是反過來的(指標
+   跟著陀螺,右坡度往左)。G1000 是哪一種要問教官或拿實機確認,改的話只是一個正負號。
+2. 要不要在桌面版預設打開。
+3. 鍵盤只有全開/全關,做不出「帶一點桿」;方向鍵在開關打開時一律被攔截,連「改降場」
+   下拉選單有焦點時也是。要練細微修正還是得用搖桿。
+
+---
+
+## 13. 版面
+
+兩排(使用者要求):**上排** SITUATION、平面圖(CHART)、姿態儀;**下排**改降程序八格,
+橫著排。全部在 `css/style.css`,斷點與原因都寫在該檔的註解裡,這裡只列結論:
+
+| 寬度 | 姿態關著 | 姿態開著 | 八格 |
+|---|---|---|---|
+| ≤ 920(手機) | 全部直排 | (開關跟姿態儀都隱藏) | 直排 |
+| 921–1439 | SITUATION 3×2 方格 + 地圖 | SITUATION 攤成一條橫帶在上,地圖 + 姿態儀並排在下 | 2×4 |
+| 1440–1569 | 同上 | 同上 | 一排 8 格 |
+| ≥ 1570 | 同上 | 三欄:SITUATION 窄欄 280px / 地圖 / 姿態儀 | 一排 8 格 |
+
+- **上排高度由地圖決定**(`--top-h`,420–560px 隨寬度),寬度照航圖比例;另外兩格被拉到
+  同一個高度。
+- **三欄的門檻 1570 是量出來的**:姿態儀在橫帶排法下受高度限制、三欄下受寬度限制,三欄
+  要到約 1560 才追得上。門檻放在這,視窗變寬時姿態儀只會變大(1440:649px 寬),不會在
+  切換那一刻縮小——QC 抓過一次 1179→1180 從 551 縮到 399 的問題。代價是常見筆電寬度
+  (1280–1512)頁面比較高,八格要往下捲才看得到。想要頁面短一點就把 1570 調低,但姿態儀
+  會在切換時變小。
+- **按「出題」版面不能跳。** 出題前的 SITUATION(`briefBlankHTML()`)跟出題後同樣形狀;
+  橫帶模式下「位置」那格最長,出題前用隱形的佔位行撐到同樣高度(`.ph`)。QC 抓過一次
+  921–1179 橫帶按出題會長高 42–106px 的問題,修正後在 921–1569 各寬度出題數百次高度都不變。
+- 姿態開關旁的提醒文字拆成兩段各自不斷行,只會在分號後面換行。
+- 用了 container query 跟 subgrid,舊瀏覽器會退回比較簡單但可用的排法。

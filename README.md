@@ -37,6 +37,18 @@ npm start
 
 然後開 http://localhost:8766
 
+## 姿態訓練（prototype）
+
+改降時學員是低頭算板子，但飛機還在飛。按「姿態訓練（prototype）」打開一個 G1000 風格的
+姿態儀、高度帶與 VSI：出題後開始有亂流，要一邊算、一邊用搖桿守住姿態與 3000 ft 的高度。
+壓坡度不帶桿，機頭會下沉、高度會掉。只在電腦／平板顯示。
+
+- **接飛行搖桿請用 Chrome、Edge、Brave 等 Chromium 核心的瀏覽器。Safari 讀不到飛行搖桿**
+  （iPad 上的瀏覽器底層都是 Safari 的引擎，很可能也讀不到）。
+- 瀏覽器要**先按一下搖桿上的任一按鈕**才會偵測到搖桿。
+- 沒有搖桿可以用方向鍵：↑↓ 控 pitch、←→ 控坡度。
+- 搖桿沒反應時，打開 `tools/gamepad-test.html` 看瀏覽器有沒有抓到裝置。
+
 ## 專案結構
 
 ```
@@ -47,9 +59,11 @@ js/data.js             航點、VOR、機場、走廊資料
 js/scenario.js         出題邏輯
 js/map.js              平面圖繪製
 js/compute.js          答案模型
-js/ui.js               畫面與碼表
+js/attitude.js         姿態訓練：姿態／高度模擬與 G1000 風格畫面
+js/ui.js               畫面、碼表、搖桿輸入
 assets/chart-south.png 底圖（CAA VFR 航圖裁切）
 tools/make_chart.py    從新的 AIRAC PDF 重新產生底圖
+tools/gamepad-test.html 搖桿偵測測試頁
 tests/                 自動化測試 + 抽樣出題表
 docs/HANDOFF.md         開發文件：設計決策、領域資料來源、已知限制與下一步
 ```

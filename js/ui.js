@@ -2,7 +2,8 @@
 // 這裡不做任何導航或油量計算 —— 要判斷什麼就呼叫 C8.scenario / C8.compute。
 (function(){
 'use strict';
-var Scenario = window.C8.scenario, Compute = window.C8.compute, Attitude = window.C8.attitude;
+var Scenario = window.C8.scenario, Compute = window.C8.compute, Attitude = window.C8.attitude,
+    Chart = window.C8.map;
 var ITEMS = Compute.ITEMS;
 
 var S=null;
@@ -10,6 +11,7 @@ var S=null;
 function render(reveal){
   var r=Compute.compute(S);
   document.getElementById('brief').innerHTML=Compute.briefHTML(S,r);
+  document.getElementById('map').innerHTML=Chart.mapSVG(S,r);
   var A=reveal?Compute.answers(S,r):null;
   var h='';
   for(var i=0;i<ITEMS.length;i++){
@@ -41,8 +43,9 @@ function blankSheet(){
   document.getElementById('sheet').innerHTML=h;
 }
 function idle(){
-  document.getElementById('brief').innerHTML=
-    '<h2>SITUATION</h2><div class="sit">按「出題」開始。題目出現的同時開始計時。</div>';
+  document.getElementById('brief').innerHTML=Compute.briefBlankHTML();
+  // 地圖格先放一張同尺寸的空白底,出題前後格子大小不變
+  document.getElementById('map').innerHTML='<div class="mapwrap map-idle"><span>出題後顯示改降航路</span></div>';
   blankSheet();
   document.getElementById('reveal').disabled=true;
   var e=document.getElementById('stopwatch');e.textContent='00:00';e.className='';
@@ -87,18 +90,32 @@ var aiHost=document.getElementById('aiHost'), attToggle=document.getElementById(
 // 選裝置:HOTAS 常常是「搖桿本體」跟「油門座」兩個獨立的 USB 裝置,瀏覽器會列成兩台。
 // 只抓第一個有 2 軸的會抓到油門座(它軸更多、而且常常排在前面),推桿就沒反應。
 // 所以先挑名字看起來像搖桿的,其次才退回第一個可用的。
+// Airbus 側桿(Thrustmaster TCA Sidestick)常跟 TCA 油門座(Quadrant)一起接,所以
+// quadrant/q-eng 也要排除;airbus/a320/pilot/yoke 列為優先。TCA 系列實際回報的裝置
+// 名稱沒有在實機上確認過——選錯的話,姿態儀下方的狀態列會直接顯示抓到哪一台。
+// 不放「flight」:Saitek 的 Pro Flight Switch/Radio/Multi Panel 也叫 flight,會被當成搖桿。
+// T.Flight Hotas 這類一體機靠「hotas」抓(Warthog 的油門座也有 hotas,但先被 throttle 排除)。
+// panel 是開關/無線電面板;crosswind 是 MFG 的踏板,名字裡沒有 pedal。
+var PAD_SKIP=/throttle|rudder|pedal|crosswind|quadrant|q-eng|tpr|tfrp|panel/,
+    PAD_PREFER=/joystick|stick|hotas|warthog|t\.16000|sidewinder|airbus|a320|pilot|yoke/;
 function pickPad(pads){
   var fallback=null,i,gp,id;
   for(i=0;i<pads.length;i++){
     gp=pads[i];
     if(!gp||!gp.axes||gp.axes.length<2) continue;
     id=(gp.id||'').toLowerCase();
-    if(/throttle|rudder|pedal/.test(id)) continue;              // 明顯不是拿來控姿態的
-    if(/joystick|stick|flight|warthog|t\.16000|sidewinder/.test(id)) return gp;
+    if(PAD_SKIP.test(id)) continue;              // 明顯不是拿來控姿態的
+    if(PAD_PREFER.test(id)) return gp;
     if(!fallback) fallback=gp;
   }
   return fallback;
 }
+
+// Safari 讀不到一般的飛行搖桿(在使用者的 Mac 上實測:macOS 認得 HOTAS Warthog,Chrome
+// 讀得到,Safari 連網路上的 joystick tester 都讀不到)。確切是 WebKit 哪一條規則擋掉的
+// 沒有追到原始碼,但結論很穩定,所以直接提示改用 Chromium 核心的瀏覽器。
+// macOS 上的 Chrome/Edge/Brave 的 UA 也含「Safari」,要先排除掉它們。
+var IS_SAFARI=/^((?!chrome|chromium|crios|edg|opr|fxios|android).)*safari/i.test(navigator.userAgent);
 
 var padInfo=null;   // {id, axes:[…]},沒抓到就是 null
 function readPad(){
@@ -128,8 +145,12 @@ document.addEventListener('keyup',function(e){
 
 // 搖桿狀態列:直接把偵測到的裝置名稱跟前四軸的即時數值印出來。接了 HOTAS 卻沒反應時,
 // 一眼就能看出是「根本沒偵測到」還是「偵測到了但我們讀錯軸」。
-var NOTE_KEY='未偵測到搖桿——請先按一下搖桿上的任一按鈕(瀏覽器要按過按鈕才會把搖桿交出來)。'+
-             '也可以先用方向鍵:↑↓ 控 pitch、←→ 控坡度。';
+var NOTE_KEY = IS_SAFARI
+  ? '你現在用的是 Safari,讀不到飛行搖桿——請改用 Chrome、Edge 或 Brave。'+
+    '暫時可以用方向鍵:↑↓ 控 pitch、←→ 控坡度。'
+  : '未偵測到搖桿——請先按一下搖桿上的任一按鈕(瀏覽器要按過按鈕才會把搖桿交出來)。'+
+    '也可以先用方向鍵:↑↓ 控 pitch、←→ 控坡度。';
+document.getElementById('attHint').classList.toggle('warn',IS_SAFARI);
 function setNote(){
   var t;
   if(padInfo){

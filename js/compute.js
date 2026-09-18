@@ -1,17 +1,17 @@
 // 答案模型：把情境（makeScenario 的回傳值）算成數字結果，再組成畫面用的字串
 // （SITUATION 簡報、航段表、八格答案）。字串組裝不碰 DOM，ui.js 只負責把結果塞進 innerHTML。
 (function(root, factory){
-  var Geo, Data, Scenario, Map;
+  var Geo, Data, Scenario;
   if (typeof module === 'object' && module.exports) {
     Geo = require('./geo.js'); Data = require('./data.js');
-    Scenario = require('./scenario.js'); Map = require('./map.js');
+    Scenario = require('./scenario.js');
   } else {
-    Geo = root.C8.geo; Data = root.C8.data; Scenario = root.C8.scenario; Map = root.C8.map;
+    Geo = root.C8.geo; Data = root.C8.data; Scenario = root.C8.scenario;
   }
-  var m = factory(Geo, Data, Scenario, Map);
+  var m = factory(Geo, Data, Scenario);
   if (typeof module === 'object' && module.exports) module.exports = m;
   else { root.C8 = root.C8 || {}; root.C8.compute = m; }
-})(this, function(Geo, Data, Scenario, Map){
+})(this, function(Geo, Data, Scenario){
 'use strict';
 
 var VAR=Data.VAR, BURN=Data.BURN, RESERVE=Data.RESERVE, AD=Data.AD;
@@ -54,7 +54,8 @@ function compute(s){
   return r;
 }
 
-/* ---------- SITUATION 簡報 + 平面圖 ---------- */
+/* ---------- SITUATION 簡報 ----------
+   平面圖不在這裡:版面拆成上排三格之後,地圖有自己的格子,由 ui.js 直接呼叫 Map.mapSVG() 寫進去。 */
 function briefHTML(s,r){
   var d=AD[s.dest];
   var speedRow='<div class="row"><dt>地速</dt><dd>GS '+s.gs+' kt</dd></div>';
@@ -66,7 +67,24 @@ function briefHTML(s,r){
     speedRow+
     '<div class="row"><dt>剩油</dt><dd>'+s.fuel.toFixed(1)+' gal<small>'+(s.lr?'Long Range tank':'Standard tank')+'</small></dd></div>'+
     '<div class="row dest"><dt>改降</dt><dd>'+d.n+'</dd></div>'+
-    '</dl><div class="sit"><b>考官給的狀況</b>'+s.trig.zh+'</div>'+Map.mapSVG(s,r);
+    '</dl><div class="sit"><b>考官給的狀況</b>'+s.trig.zh+'</div>';
+}
+
+// 還沒出題時的 SITUATION:跟 briefHTML 同樣六列(標題要跟上面一致),值先空著。
+// 讓格子在出題前後維持同一個形狀,版面不會一按出題就整個跳。
+// 「位置」出題後固定是三行(VOR、R-/DME、目視位置),空白版在「—」上下各塞一段同樣大小的 .ph:
+// 平常 display:none,只有 SITUATION 攤成一條橫帶時才用 visibility:hidden 佔住那三行的高度
+// (見 css/style.css),橫帶出題前後才會一樣高;「—」夾在中間,跟其他格的「—」對齊。
+function briefBlankHTML(){
+  var labels=['時間','位置','高度','地速','剩油','改降'], h='', i;
+  var pos='<span class="ph" aria-hidden="true">R-000 / 00 DME<br></span>—'+
+          '<span class="ph" aria-hidden="true"><small>達仁外海</small></span>';
+  for(i=0;i<labels.length;i++){
+    h+='<div class="row'+(labels[i]==='改降'?' dest':'')+'"><dt>'+labels[i]+'</dt><dd class="nil">'+
+       (labels[i]==='位置'?pos:'—')+'</dd></div>';
+  }
+  return '<h2>SITUATION</h2><dl>'+h+'</dl>'+
+    '<div class="sit"><b>考官給的狀況</b>按「出題」開始。題目出現的同時開始計時。</div>';
 }
 
 function legTable(r){
@@ -160,5 +178,5 @@ function answers(s,r){
   return A;
 }
 
-return {compute:compute, briefHTML:briefHTML, legTable:legTable, answers:answers, ITEMS:ITEMS, hhmm:hhmm};
+return {compute:compute, briefHTML:briefHTML, briefBlankHTML:briefBlankHTML, legTable:legTable, answers:answers, ITEMS:ITEMS, hhmm:hhmm};
 });

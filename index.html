@@ -29,17 +29,27 @@
     </select>
   </label>
   <button id="attToggle" class="ghost ghost-toggle" aria-pressed="false">姿態訓練（prototype）</button>
+  <!-- 兩段各自不斷行,只在分號後面換行(見 css/style.css 的 .att-hint) -->
+  <span class="att-hint" id="attHint"><span>接搖桿請用 Chrome、Edge、Brave 等 Chromium 核心瀏覽器；</span><wbr><span>Safari 讀不到飛行搖桿。</span></span>
 </div>
 
+<!-- 上排:SITUATION、平面圖、姿態訓練(prototype)。.cols 這個 class 名稱不要改——
+     js/ui.js 的姿態開關用 querySelector('.cols') 找它、加上 att-on -->
 <div class="cols">
   <section class="brief" id="brief"></section>
-  <section class="sheet" id="sheet"></section>
+  <section class="mapcell">
+    <h2>CHART</h2>
+    <div id="map"></div>
+  </section>
   <section class="attitude" id="attitude" hidden>
     <h2>姿態訓練 <span class="beta">prototype</span></h2>
     <div id="aiHost"></div>
-    <p class="ai-note" id="aiNote">出題後開始亂流，顯示答案或未接搖桿時指針停平。搖桿用左搖桿上下軸修正 pitch。</p>
+    <p class="ai-note" id="aiNote">出題後開始亂流。</p>
   </section>
 </div>
+
+<!-- 下排:改降程序八格,桌面版橫排 -->
+<section class="sheet" id="sheet"></section>
 
 <p class="tip">
   這個工具只給答案，不判對錯。距離與航向由圖上座標推算，誤差約 1–2 NM / 2–3°，正式作業請以航圖實量為準。
