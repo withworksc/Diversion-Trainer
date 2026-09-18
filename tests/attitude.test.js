@@ -280,18 +280,18 @@ describe('v2:roll 中性穩定、亂流幅度、跟螢幕更新率無關',()=>{
     assert.ok(s.roll-atRelease<8,`放桿後又多滾了 ${(s.roll-atRelease).toFixed(1)}°`);
   });
   // 不動桿跑 sec 秒,回傳 pitch 偏離平飛的 RMS 與 |roll| 的時間平均(30 顆固定種子的中位數)
-  function drift(hz,sec){
+  function drift(hz,sec,level){
     const dt=1/hz, trim=Attitude.CFG.pitch.trim, pr=[], rr=[];
     for(let seed=1;seed<=30;seed++){
       let s=Attitude.initialState(), r=rng(seed*101), sq=0, ra=0, n=0;
-      for(let i=0;i<sec*hz;i++){ s=Attitude.step(s,dt,{pitch:0,roll:0},true,r); sq+=(s.pitch-trim)**2; ra+=Math.abs(s.roll); n++; }
+      for(let i=0;i<sec*hz;i++){ s=Attitude.step(s,dt,{pitch:0,roll:0},true,r,level); sq+=(s.pitch-trim)**2; ra+=Math.abs(s.roll); n++; }
       pr.push(Math.sqrt(sq/n)); rr.push(ra/n);
     }
     const med=a=>a.sort((x,y)=>x-y)[a.length>>1];
     return {pitch:med(pr), roll:med(rr)};
   }
-  // v2.0.1:亂流取 v1 跟 v2 中間。同一個量法 v2 是 pitch 2.25° / roll 3.6°,v2.0.1 約 1.6° / 2.1°
-  test('不動桿時姿態會跑掉,強度在 v1 與 v2 之間(v2.0.1):pitch RMS 1.2~2.1°,坡度平均 1.2~3.2°',()=>{
+  // 預設(「中」= v2.0.1,v1 跟 v2 中間)。同一個量法「難」(v2)是 pitch 2.25° / roll 3.6°,「中」約 1.6° / 2.1°
+  test('預設亂流(中):不動桿時姿態會跑掉,強度在 v1 與 v2 之間:pitch RMS 1.2~2.1°,坡度平均 1.2~3.2°',()=>{
     const d=drift(60,30);
     assert.ok(d.pitch>1.2&&d.pitch<2.1,`pitch RMS ${d.pitch.toFixed(2)}°`);
     assert.ok(d.roll>1.2&&d.roll<3.2,`|roll| 平均 ${d.roll.toFixed(2)}°`);
@@ -301,6 +301,32 @@ describe('v2:roll 中性穩定、亂流幅度、跟螢幕更新率無關',()=>{
     assert.ok(Math.abs(a.pitch/b.pitch-1)<0.25,`pitch RMS 60Hz ${a.pitch.toFixed(2)} vs 120Hz ${b.pitch.toFixed(2)}`);
     assert.ok(Math.abs(a.roll/b.roll-1)<0.35,`|roll| 60Hz ${a.roll.toFixed(2)} vs 120Hz ${b.roll.toFixed(2)}`);
   });
+  test('亂流大小(v2.1):易 < 中 < 難,pitch 跟坡度都是',()=>{
+    const e=drift(60,30,'easy'), m=drift(60,30,'medium'), h=drift(60,30,'hard');
+    assert.ok(e.pitch<m.pitch&&m.pitch<h.pitch,`pitch RMS 易/中/難 ${[e,m,h].map(d=>d.pitch.toFixed(2)).join('/')}`);
+    assert.ok(e.roll<m.roll&&m.roll<h.roll,`|roll| 易/中/難 ${[e,m,h].map(d=>d.roll.toFixed(2)).join('/')}`);
+  });
+  test('「易」跟 v1 同一個量級:pitch RMS < 1.4°、坡度平均 < 1.2°',()=>{
+    const e=drift(60,30,'easy');
+    assert.ok(e.pitch<1.4,`pitch RMS ${e.pitch.toFixed(2)}°`);
+    assert.ok(e.roll<1.2,`|roll| 平均 ${e.roll.toFixed(2)}°`);
+  });
+  test('沒給檔位 = 預設「中」(同一組種子結果完全一樣)',()=>{
+    let a=Attitude.initialState(), b=Attitude.initialState(); const ra=rng(9), rb=rng(9);
+    for(let i=0;i<300;i++){ a=Attitude.step(a,1/60,{pitch:0,roll:0},true,ra); b=Attitude.step(b,1/60,{pitch:0,roll:0},true,rb,'medium'); }
+    assert.equal(a.pitch,b.pitch); assert.equal(a.roll,b.roll);
+  });
+});
+
+describe('turbulenceFor:亂流檔位 → 強度',()=>{
+  const T=Attitude.CFG.turbulence;
+  test('三檔都認得,而且三檔的值就是 CFG.turbulence 裡的',()=>{
+    for(const lv of ['easy','medium','hard']) assert.equal(Attitude.turbulenceFor(lv),T[lv]);
+  });
+  test('不認得的值(舊的 localStorage、打錯字、原型鏈上的名字)退回預設「中」',()=>{
+    for(const lv of [undefined,null,'','extreme','constructor','toString']) assert.equal(Attitude.turbulenceFor(lv),T.medium);
+  });
+  test('預設是「中」',()=>{ assert.equal(Attitude.CFG.defaultTurbulence,'medium'); });
 });
 
 test('altitude bug 放大(v2):高度帶上的 bug 至少 17 px 高、右緣不壓到刻度數字',()=>{

@@ -41,8 +41,6 @@ var CFG = {
     limit: 25,          // deg,顯示上限(超過就是失控,先夾住不讓畫面爆開)
     spring: 0.15,       // 1/s²,配平拉力:越偏離 trim 越想被拉回去(模擬靜穩定性)
     idleSpring: 4.0,    // 沒在出題/開關關閉時額外加的拉力,讓指針很快歸位
-    gustJitter: 1.2,    // 亂流的隨機擾動強度(乘 √dt,見 stepAxis)。不動桿時 pitch 偏離
-                        // 平飛的 RMS:v1 約 1.3°、v2(1.6)約 2.6°,v2.0.1 取中間約 2.0°
     gustDecay: 0.6,     // 1/s,亂流本身會自己衰減,不是永遠往同一個方向跑
     damping: 0.8,       // 1/s,角速度阻尼(跟 spring 搭起來剛好臨界阻尼)
     controlGain: 18,    // deg/s²,桿子推到底的修正力道
@@ -57,18 +55,31 @@ var CFG = {
   // 會慢慢自己回平——使用者指出真的飛機不會這樣)。所以桿子控制的是「滾轉速率」:
   // 滿桿約 18°/s(1.5 秒約 21° 坡度),放桿後再多滾約 5° 就停住——damping 要夠大
   // (滾轉阻尼,時間常數約 0.3 秒),不然放桿後會一路滑到 50° 以上。亂流吹歪的坡度也
-  // 一樣不會自己回來,不修就會越漂越大(不動桿 30 秒中位數:v2 的 7 約 6°,v2.0.1 取
-  // v1(不到 1°)跟 v2 的中間,4 約 3.5°)。
+  // 一樣不會自己回來,不修就會越漂越大(亂流強度見 CFG.turbulence)。
   // 停止出題時靠 idleSpring 回平,那是畫面歸位,不是飛機的性質。
   roll: {
     limit: 60,
     spring: 0,
     idleSpring: 4.0,
-    gustJitter: 4,
     gustDecay: 0.7,
     damping: 3,
     controlGain: 55
   },
+
+  // 亂流大小(v2.1 起可選):亂流隨機擾動的強度(乘 √dt,見 stepAxis),三檔就是前三版
+  // 調過的值——易 = v1、中 = v2.0.1、難 = v2。只有亂流強度不同;放桿不回平、轉彎掉高度
+  // 這些飛機本身的性質三檔都一樣。不動桿時(60 Hz、60 顆種子的中位數):
+  //   易:pitch 偏離平飛 RMS 約 1.3°、坡度 30 秒約 1°
+  //   中:約 2.0°、約 3.5°
+  //   難:約 2.6°、約 6°(最差一成 17°)
+  // v1 的 roll 還有回正力,坡度漂不遠;「易」的 roll 取 1,讓 30 秒的漂移跟 v1 差不多,
+  // 剛好也跟中、難等距(1 / 4 / 7)。
+  turbulence: {
+    easy:   {pitch:0.8, roll:1},
+    medium: {pitch:1.2, roll:4},
+    hard:   {pitch:1.6, roll:7}
+  },
+  defaultTurbulence: 'medium',
 
   tasKt: 115,           // kt,算 VS 用的假設空速(跟這個工具其他地方的巡航速度量級一致)
   ktToFpm: 101.3,       // 1 kt 的下滑/爬升分量換算成 ft/min 的係數
@@ -150,17 +161,25 @@ function vsFrom(pitchDeg,rollDeg){
 }
 
 // 單一軸的動態:亂流(會自我衰減的隨機漫步)+ 回正力 + 阻尼 + 操縱輸入 + 外力。
+// 亂流檔位 → {pitch, roll} 強度。不認得的值(舊的 localStorage、打錯字)退回預設,
+// 不要讓畫面因為一個設定值壞掉。
+function turbulenceFor(level){
+  return (level && Object.prototype.hasOwnProperty.call(CFG.turbulence,level))
+    ? CFG.turbulence[level] : CFG.turbulence[CFG.defaultTurbulence];
+}
+
 // pitch 跟 roll 共用這一套,只有 CFG 參數不同——不要為了第二個軸複製一份。
 // ax:{value,rate,gust};k:CFG.pitch 或 CFG.roll(回正的目標是 k.trim,沒設就是 0);
+// jitter:亂流強度(CFG.turbulence 裡那一檔、這個軸的值);
 // extra:其他軸帶來的角加速度(deg/s²),目前只有「坡度讓機頭下沉」用到。
 // 回傳新的 {value,rate,gust}。
-function stepAxis(ax,dt,ctl,active,rnd,k,extra){
+function stepAxis(ax,dt,ctl,active,rnd,k,extra,jitter){
   // 亂流本身是會自己衰減的隨機漫步,不是白噪音——不然每個影格都獨立亂跳,畫面上
   // 只會看到抖動,不會有「要顧著修正」的漂移感。衰減乘數要夾住下限:dt 大或
   // gustDecay 調高時,不夾住乘數會變負值,亂流會反過來越滾越大。
   // 隨機項乘的是 √dt 不是 dt:每格乘 dt 的話,每秒累積的變異數跟影格長度成正比,
   // 120 Hz 螢幕的亂流會比 60 Hz 弱約 30%(v1 就是這樣)。√dt 才跟更新率無關。
-  var gust = ax.gust*Math.max(0, 1-k.gustDecay*dt) + (rnd()-0.5)*2*k.gustJitter*Math.sqrt(dt);
+  var gust = ax.gust*Math.max(0, 1-k.gustDecay*dt) + (rnd()-0.5)*2*jitter*Math.sqrt(dt);
   // 沒在出題或開關關掉時,亂流本身也加速歸零,指針才會真的停平,不是慢慢飄回去。
   if(!active) gust *= Math.max(0, 1-k.gustDecay*4*dt);
 
@@ -185,8 +204,10 @@ function stepAxis(ax,dt,ctl,active,rnd,k,extra){
 // rnd:可注入固定種子的亂數,測試用來重現同一段亂流。
 // input:−1~1 的操縱輸入(已經過死區處理)。給數字 = 只有 pitch(舊的呼叫方式,
 // 測試還在用);要兩軸就給 {pitch:…, roll:…}。
-function step(state,dt,input,active,rnd){
+// level:亂流大小 'easy' / 'medium' / 'hard'(見 CFG.turbulence),沒給或不認得就用預設。
+function step(state,dt,input,active,rnd,level){
   rnd = rnd || Math.random;
+  var turb = turbulenceFor(level);
   var s=clone(state);
   var inp = (input==null) ? {pitch:0,roll:0}
           : (typeof input==='number') ? {pitch:input,roll:0}
@@ -195,11 +216,11 @@ function step(state,dt,input,active,rnd){
   // 坡度讓機頭下沉:用「這一格開始時」的坡度算,跟 rate 先更新、角度再更新是同一個做法
   var p = stepAxis({value:s.pitch, rate:s.rate, gust:s.gust},
                    dt, active?clamp(inp.pitch,-1,1):0, active, rnd, CFG.pitch,
-                   -CFG.pitch.bankDrop*loadExcess(s.roll||0));
+                   -CFG.pitch.bankDrop*loadExcess(s.roll||0), turb.pitch);
   s.pitch=p.value; s.rate=p.rate; s.gust=p.gust;
 
   var r = stepAxis({value:s.roll, rate:s.rollRate||0, gust:s.rollGust||0},
-                   dt, active?clamp(inp.roll,-1,1):0, active, rnd, CFG.roll);
+                   dt, active?clamp(inp.roll,-1,1):0, active, rnd, CFG.roll, 0, turb.roll);
   s.roll=r.value; s.rollRate=r.rate; s.rollGust=r.gust;
 
   // 坡度影響高度有兩條路,都在上面:機頭下沉(stepAxis 的 extra),以及同樣姿態下需要
@@ -461,7 +482,7 @@ function renderSVG(state){
   '</svg>';
 }
 
-return {CFG:CFG, applyDeadzone:applyDeadzone, stickCurve:stickCurve, initialState:initialState, resetAlt:resetAlt,
+return {CFG:CFG, applyDeadzone:applyDeadzone, stickCurve:stickCurve, turbulenceFor:turbulenceFor, initialState:initialState, resetAlt:resetAlt,
   vsFrom:vsFrom, loadExcess:loadExcess, step:step, renderSVG:renderSVG,
   altDigits:altDigits, vsReadout:vsReadout};
 });

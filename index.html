@@ -42,7 +42,16 @@
     <div id="map"></div>
   </section>
   <section class="attitude" id="attitude" hidden>
-    <h2>姿態訓練 <span class="beta">prototype</span></h2>
+    <div class="att-head">
+      <h2>姿態訓練 <span class="beta">prototype</span></h2>
+      <!-- 亂流大小(v2.1)。data-level 對應 js/attitude.js 的 CFG.turbulence -->
+      <div class="turb" id="turbPick" role="group" aria-label="亂流大小">
+        <span>亂流</span>
+        <button type="button" data-level="easy" aria-pressed="false">易</button>
+        <button type="button" data-level="medium" aria-pressed="true">中</button>
+        <button type="button" data-level="hard" aria-pressed="false">難</button>
+      </div>
+    </div>
     <div id="aiHost"></div>
     <p class="ai-note" id="aiNote">出題後開始亂流。</p>
   </section>

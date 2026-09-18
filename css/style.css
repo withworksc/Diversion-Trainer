@@ -96,6 +96,15 @@ label.inline{font-size:13px;color:var(--ink-soft);display:flex;align-items:cente
 .attitude[hidden]{display:none}
 .attitude h2{background:var(--ink-soft)}
 .attitude h2 .beta{font-weight:400;opacity:.75;margin-left:6px}
+/* 標題列:左邊標題、右邊亂流大小(易/中/難)。整條用標題的底色,按鈕是底色上的小方塊,
+   選中的那顆反白。飛行中要能一鍵切換,所以不用下拉選單。 */
+.att-head{display:flex;align-items:center;gap:8px;background:var(--ink-soft);padding-right:8px}
+.att-head h2{flex:1 1 auto;min-width:0}
+.turb{display:flex;align-items:center;gap:4px;font-size:11px;color:#F4F0E4}
+.turb span{opacity:.8;margin-right:2px;letter-spacing:.05em}
+.turb button{font-size:11px;font-weight:600;line-height:1.4;padding:2px 9px;
+  background:transparent;color:#F4F0E4;border:1px solid rgba(244,240,228,.55);border-radius:2px}
+.turb button[aria-pressed="true"]{background:#F4F0E4;color:var(--ink);border-color:#F4F0E4}
 #aiHost{position:relative;flex:1 1 auto;min-height:240px;background:#0B0F12}
 #aiHost svg{position:absolute;top:14px;left:14px;width:calc(100% - 28px);height:calc(100% - 28px);display:block}
 /* 搖桿狀態列會印兩行(裝置名稱 + 即時軸值),用等寬字讓數字跳動時不會整行抖 */

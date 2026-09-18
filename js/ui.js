@@ -163,6 +163,28 @@ function setNote(){
   if(aiNote.textContent!==t) aiNote.textContent=t;
 }
 
+// 亂流大小(v2.1):易/中/難,強度定義在 attitude.js 的 CFG.turbulence。記在 localStorage,
+// 下次打開還是同一檔——這只是個人偏好,讀寫失敗(私密瀏覽、封鎖網站資料)就用預設,
+// 不影響功能。飛行中切換立刻生效,不重設姿態。
+var TURB_KEY='c8.turbulence', turbPick=document.getElementById('turbPick');
+function isLevel(v){ return !!v && Object.prototype.hasOwnProperty.call(Attitude.CFG.turbulence,v); }
+var attLevel=(function(){
+  try{ var v=localStorage.getItem(TURB_KEY); if(isLevel(v)) return v; }catch(e){}
+  return Attitude.CFG.defaultTurbulence;
+})();
+function paintTurb(){
+  var bs=turbPick.querySelectorAll('button[data-level]');
+  for(var i=0;i<bs.length;i++) bs[i].setAttribute('aria-pressed', bs[i].getAttribute('data-level')===attLevel);
+}
+turbPick.addEventListener('click',function(e){
+  var b=e.target.closest('button[data-level]');
+  if(!b||!isLevel(b.getAttribute('data-level'))) return;
+  attLevel=b.getAttribute('data-level');
+  paintTurb();
+  try{ localStorage.setItem(TURB_KEY,attLevel); }catch(err){}
+});
+paintTurb();
+
 // 瀏覽器把搖桿交出來的那一刻會發這個事件,借它立刻更新狀態列
 window.addEventListener('gamepadconnected',function(){ setNote(); });
 window.addEventListener('gamepaddisconnected',function(){ padInfo=null; setNote(); });
@@ -181,7 +203,7 @@ function attTick(t){
   attLastT=t;
   var pad=readPad();
   setNote();
-  attState=Attitude.step(attState,dt,pad||{pitch:keyPitch,roll:keyRoll},questionActive);
+  attState=Attitude.step(attState,dt,pad||{pitch:keyPitch,roll:keyRoll},questionActive,null,attLevel);
   var key=attRenderKey(attState);
   if(key!==attLastKey){ aiHost.innerHTML=Attitude.renderSVG(attState); attLastKey=key; }
   attRAF=requestAnimationFrame(attTick);
