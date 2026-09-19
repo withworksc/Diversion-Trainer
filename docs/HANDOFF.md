@@ -8,7 +8,7 @@
 
 ## 1. 這是什麼
 
-練習「diversion drill」的網頁工具：RCFN → RCKW 這條 C8 VFR 走廊的越野航線上，
+練習「diversion drill」的網頁工具：RCFN ⇄ RCKW 這條 C8 VFR 走廊的越野航線上（v2.2 起南下、北上都有），
 考官會在半路臨時要求改降，學員要在很短時間內口頭答出八件事。按「出題」出一個情境，
 在自己的板子上算；按「顯示答案」看模型答案，兩者對照看漏了什麼。**沒有判分**——這是
 使用者刻意的選擇，工具只給答案，不判對錯。
@@ -103,8 +103,17 @@ UI 的說明文字裡有講。逐點內插會更準確，是合理的加強項�
 順時針轉 90°，因為 C8 是貼著海岸線外側飛，不進陸地。南端鵝鑾鼻附近轉彎大，用鄰點做法
 線也能轉得對。
 
-出題位置是沿這條鏈的**連續**小數索引 `fi`（1.2 到 8.0），不吸附到檢查點，用最近的點加
-距離描述：「大武外海」、「旭海南方 2 NM 外海」。
+出題位置是沿這條鏈的**連續**小數索引 `fi`，不吸附到檢查點，用最近的點加距離描述：
+「大武外海」、「旭海南方 2 NM 外海」。80% 落在東岸（`fi` 1.2 到 8.0，知本、達仁、港仔鼻
+一帶），20%（`CAPE_SHARE`）落在南端（v2.2，使用者要加鵝鑾鼻、貓鼻頭外海的起始點）。
+
+**南端 `CAPE`（v2.2）**：貓鼻頭 → 南灣 → 鵝鑾鼻南方，西→東，當成 `CHAIN` 的負索引接在
+鵝鑾鼻前面（`fi` −3 到 0.6）。沒有併進 `CHAIN`，因為 `fi` 的整數值在 VOR 切換、MSA
+規則、測試裡都有用到，插在前面會整串位移。這三個點**直接給海上座標**，不做離岸平移：
+南岸轉彎太急，鄰點法線平移會切過鵝鑾鼻岬角。座標是把點畫在 `assets/chart-south.png` 上
+目視擺的：貓鼻頭外海在岬角西南、南灣在灣口（剛好落在航圖 C8 點線上）、鵝鑾鼻南方在
+燈塔符號南邊，「南灣 → 鵝鑾鼻南方」整段在灣外海上。南端沿岸是東西向，位置描述改用八方位
+（「貓鼻頭東北方 2 NM 外海」），東岸照舊用北方/南方。
 
 ### 2.5 機場
 
@@ -134,6 +143,9 @@ UI 的說明文字裡有講。逐點內插會更準確，是合理的加強項�
 | C20 | RCGI ↔ RCLY |
 
 C8 走廊高度：南下 3,000 ft 或以下，北上 2,500 ft 或以下（使用者自己的筆記，非讀圖）。
+出題時的起始高度就是這兩個值（v2.2，使用者確認北上 2,500），姿態訓練的高度表與
+altitude bug 也跟著題目走（`Attitude.resetAlt(state, S.alt)`）。v2.1 以前起始高度是看
+**改降場**決定的（RCFN/RCYU/RCGI 2,500，其他 3,000），那是原型留下來的怪規則，已拿掉。
 
 ### 2.7 飛機與油量模型
 
@@ -149,8 +161,8 @@ DA40-NG。油量規劃用 **6.6 gal/hr**、**30 分鐘保留油 = 3.3 gal**，�
 index.html          頁面骨架、選改降場、出題/顯示答案按鈕
 css/style.css        樣式（單一亮色主題，見 §6）
 js/geo.js            導航數學 + 顯示用 Mercator 投影（純函式，無其他依賴）
-js/data.js            CHAIN／VOR／AD／WPT／走廊，載入時做離岸平移（依賴 geo.js）
-js/scenario.js        出題:makePos／pickDest／makeScenario／crossesRidge（依賴 geo+data）
+js/data.js            CHAIN／CAPE／VOR／AD／WPT／走廊，載入時做離岸平移（依賴 geo.js）
+js/scenario.js        出題:pickDir／makePos／pickDest／makeScenario／crossesRidge（依賴 geo+data）
 js/map.js             平面圖 SVG + 底圖定位（依賴 geo+data）
 js/compute.js          答案模型:compute() 算數字，briefHTML/answers 組字串（依賴 geo+data+scenario）
 js/attitude.js         姿態訓練(prototype):兩軸動態 + G1000 PFD 的 SVG(純函式,無其他依賴,見 §12)
@@ -189,13 +201,23 @@ ES modules 會被 CORS 擋掉，工具要能直接點兩下 `index.html` 開啟�
   練習的是計算，不是地形迴避。`js/compute.js` 的 `legs`／`legTable`／`r.multi` 都還在，
   多點航路的顯示邏輯留著沒拆，但目前 `r.multi` 恆為 `false`（`tests/compute.test.js`
   鎖住這件事）。真的要做多點迴避航路，這是要動的地方。
+- **方向（v2.2）**：`makeScenario` 先用 `pickDir` 決定南下（RCFN → RCKW，原本的題目）
+  或北上（RCKW → RCFN），各半（`NORTH_SHARE`）。`DIRS` 帶原航線、方向字、起始高度。
+  隨機抽改降場（`WEIGHT`）只有 RCKH 25、RCLY 25、RCGI 20、RCYU 10——回航場（南下回
+  RCFN、北上回 RCKW）不進隨機（使用者：通常不太會轉降豐年），但選單可以指定；指定
+  RCFN 方向就一定是南下、RCKW 一定是北上。考官狀況（`TRIGGERS`）用 `{AD}`／`{DIR}`
+  代換原目的地與方向字。`pos.trk` 是原航線在那一點的真航向（地圖本機符號用，
+  `planTrack`）。SITUATION 標題列顯示「RCKW → RCFN 北上」——放標題列是因為內容格的
+  高度在橫帶版面是算好的（§13），多一行會讓整排跳動。
 - **`crossesRidge()` 只加一句 MSA 提示，不影響航路**，故意的簡化。目前規則涵蓋
   C8 段本身會遇到的幾種情形（RCKH 全程跨山、RCFN/RCYU 在 `fi<3.6` 時跨山、RCKW 在
   `fi>4.7` 時跨山）。**驗證時發現**：對 RCYU 目的地、`fi` 在 4.5–8.0 之間（達仁以北）的
   直線，在成功（23.10°N）附近仍會偏進海岸山脈邊緣約 8–9 NM（不是中央山脈，海岸山脈
   高度較低），目前的規則沒有標記這個情形。這不影響任何測試（`crossesRidge` 的行為跟
   它自己的規則一致），但代表 RCYU 的 MSA 提示可能不夠完整——列進 §7 未決問題，需要飛行
-  教官判斷海岸山脈這段是否需要額外提示。
+  教官判斷海岸山脈這段是否需要額外提示。南端（`fi<0`，v2.2）另外處理：往 RCFN/RCYU 的
+  直線往東北切過恆春半島南端，標為 true，但提示文字說的是「恆春半島丘陵」不是大漢山；
+  往 RCKH 的直線走西岸外海，不標。
 - **答案字串（`briefHTML`／`legTable`／`answers`／`ITEMS`）都在 `js/compute.js`**，不在
   `js/ui.js`。這些是「模型答案的內容」，不是 DOM 操作——純字串組裝，`js/ui.js` 只負責
   把結果塞進 `innerHTML`。這樣測試可以直接呼叫 `Compute.answers(s,r)` 檢查文字內容，不
@@ -241,6 +263,12 @@ ES modules 會被 CORS 擋掉，工具要能直接點兩下 `index.html` 開啟�
    目前 `crossesRidge()` 沒標記。需要教官判斷海岸山脈那段高度夠不夠、要不要加提示。
 3. **磁差**：固定 4°W，還是南段內插到 3.5°W？
 4. **地速範圍**：目前 85–160 kt，5 kt 一階，前一版交接時使用者確認過合理。
+5. **北上時隨機不抽 RCKW**（v2.2）：使用者只說「通常不太會轉降豐年」，北上不抽回航場
+   RCKW 是比照推的，沒確認。
+6. **南北比例、南端起始點比例**（v2.2）：各半、20% 都是暫定值（`NORTH_SHARE`、
+   `CAPE_SHARE`）。
+7. **南端往 RCFN/RCYU 的 MSA**（v2.2）：只提示「切過恆春半島南端丘陵」，沒有給標高，
+   需要教官看圖確認要報多少。
 
 ---
 
@@ -274,8 +302,9 @@ npm start         # 本機預覽 http://localhost:8766(注意:會被瀏覽器快
   慣例的 360 而非 000）、Mercator 投影的方向性。
 - `data.js`：VOR 座標不是舊版的錯誤座標、機場燈光表、離岸平移的距離與方向、VOR 選台
   切換點跟 `CHAIN` 自己標的欄位一致。
-- `scenario.js`：`makePos` 的範圍與 VOR 選台、`pickDest` 的加權分布（2 萬題）、
-  `crossesRidge` 的每一種規則、`makeScenario` 的欄位範圍（2 萬題）。
+- `scenario.js`：`makePos` 的範圍與 VOR 選台、南端比例與位置名稱、南下/北上的原航向、
+  `pickDest` 的加權分布（2 萬題）、`crossesRidge` 的每一種規則（含南端）、`makeScenario`
+  的欄位範圍與起始高度（2 萬題）、隨機不抽回航場、指定回航場時方向固定、狀況文字代換。
 - `compute.js`：油量算式、ETA 進位（跨 60 分、跨午夜）、`r.multi` 恆為 false、HOLD/TURN
   切換、MSA 提示、日間限定警語、油量不足警告。
 - `attitude.js`：搖桿死區與 expo 曲線、兩軸的方向/夾限/回正不過衝(臨界阻尼)、anti-windup、固定種子

@@ -59,7 +59,10 @@ function compute(s){
 function briefHTML(s,r){
   var d=AD[s.dest];
   var speedRow='<div class="row"><dt>地速</dt><dd>GS '+s.gs+' kt</dd></div>';
-  return '<h2>SITUATION</h2><dl>'+
+  // 標題列帶出原航線與方向(v2.2 起南下、北上都有)。放標題列不放內容:內容格的高度
+  // 在橫帶版面是算好的,多一行會讓整排跳動(見 docs/HANDOFF.md §13)
+  var leg=s.plan?' <span class="leg">'+s.plan.from+' → '+s.plan.to+' '+s.plan.zh+'</span>':'';
+  return '<h2>SITUATION'+leg+'</h2><dl>'+
     '<div class="row"><dt>時間</dt><dd>'+hhmm(s.hh,s.mm)+' L</dd></div>'+
     '<div class="row"><dt>位置</dt><dd>'+r.vor.n+' '+r.vor.f+'<br>R-'+r.radial+' / '+r.dme+' DME'+
       '<small>'+s.pos.n+'</small></dd></div>'+
@@ -120,7 +123,7 @@ function answers(s,r){
 
   A[1]='<p class="big">'+r.vor.n+' '+r.vor.f+' <em>R-'+r.radial+' / '+r.dme+' DME</em></p>'+
     '<p class="note">目視對照：'+s.pos.n+'，高度 '+s.alt.toLocaleString()+' ft。'+
-    (s.pos.vor==='GID'?'這一段用 GID，因為中央山脈會遮蔽 HCN。':'這一段已過大武，HCN 收得到，用 HCN 比較直觀。')+'</p>';
+    (s.pos.vor==='GID'?'這一段用 GID，因為中央山脈會遮蔽 HCN。':'大武以南 HCN 收得到，用 HCN 比較直觀。')+'</p>';
 
   var holdTxt;
   if(s.trig.hold){
@@ -150,7 +153,10 @@ function answers(s,r){
   }
   al+='<p class="note">'+d.note+'</p>';
   al+='<p class="note">目的地空域 '+d.air+'。</p>';
-  if(r.ridge){
+  if(r.ridge && s.pos.fi<0){
+    // 南端(鵝鑾鼻以西)往東北的直線切過的是恆春半島南端的丘陵,不是中央山脈,不要報大漢山
+    al+='<p class="note">直線會切過恆春半島南端的丘陵地。練習飛直線，但 MSA 要一起報出來（標高請在圖上確認）。</p>';
+  }else if(r.ridge){
     al+='<p class="note">直線通過中央山脈南段，圖上該帶最高標高 5,538 ft（大漢山）。練習飛直線，但 MSA 要一起報出來。</p>';
   }
   A[4]=al;

@@ -145,6 +145,7 @@ label.inline{font-size:13px;color:var(--ink-soft);display:flex;align-items:cente
 .brief dd.nil{color:var(--rule-hard);font-weight:400}
 .brief .dest dd{color:var(--hot);font-size:20px}
 .brief .dest dd.nil{color:var(--rule-hard)}
+.brief h2 .leg{font-weight:400;letter-spacing:.02em;margin-left:8px;opacity:.9}
 .brief .sit{padding:11px 12px;background:#FDF7E3;border-top:2px solid var(--accent);font-size:14px;line-height:1.55}
 .brief .sit b{display:block;font-size:11.5px;color:var(--ink-soft);font-weight:600;margin-bottom:3px}
 /* 寬的時候(姿態關著、或是被攤成橫帶)改成 3×2 方格,字跟著格子寬度放大;

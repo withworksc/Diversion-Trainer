@@ -86,3 +86,23 @@ test('answers:油量不足時,燃油答案要出現紅字警告',()=>{
   assert.ok(s.fuel<r.req);
   assert.match(Compute.answers(s,r)[6],/不可接受/);
 });
+
+describe('v2.2:方向與南端起始點',()=>{
+  const trig={zh:'x',hold:false};
+  const north={pos:{lat:21.93,lon:120.76,fi:-2,n:'南灣外海',vor:'HCN',trk:80},dir:'N',
+               plan:Scenario.DIRS.N,dest:'RCFN',hh:10,mm:0,gs:110,alt:2500,fuel:25,lr:true,trig};
+  test('SITUATION 標題帶出原航線與方向',()=>{
+    const h=Compute.briefHTML(north,Compute.compute(north));
+    assert.match(h,/RCKW → RCFN 北上/);
+  });
+  test('南端往 RCFN:MSA 提示說的是恆春半島,不是大漢山',()=>{
+    const s={...north,dir:'S',plan:Scenario.DIRS.S,alt:3000};
+    const A=Compute.answers(s,Compute.compute(s));
+    assert.match(A[4],/恆春半島/); assert.doesNotMatch(A[4],/大漢山/);
+  });
+  test('東岸往 RCFN 的 MSA 提示照舊是大漢山',()=>{
+    const s={...north,pos:{lat:22.20,lon:120.90,fi:3.0,n:'x',vor:'HCN',trk:190},dir:'S',plan:Scenario.DIRS.S,alt:3000};
+    const A=Compute.answers(s,Compute.compute(s));
+    assert.match(A[4],/大漢山/);
+  });
+});

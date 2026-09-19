@@ -58,7 +58,7 @@ function newQ(){
   document.getElementById('reveal').disabled=false;
   startClock();
   questionActive=true;
-  attState=Attitude.resetAlt(attState); // 高度歸零重算,姿態(pitch)本身不重置
+  attState=Attitude.resetAlt(attState,S.alt); // 高度與 bug 設成這一題的高度(南下 3000、北上 2500),姿態本身不重置
 }
 
 document.getElementById('next').addEventListener('click',newQ);
@@ -215,7 +215,7 @@ attToggle.addEventListener('click',function(){
   attPanel.hidden=!attOn;
   colsEl.classList.toggle('att-on',attOn);
   if(attOn){
-    attState=Attitude.initialState();
+    attState=Attitude.initialState(S?S.alt:null);   // 題目已經出了就從那一題的高度開始
     aiHost.innerHTML=Attitude.renderSVG(attState);
     attLastKey=attRenderKey(attState);
     attLastT=null;

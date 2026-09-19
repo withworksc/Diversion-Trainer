@@ -376,3 +376,22 @@ describe('stickCurve:死區 + expo 曲線(linear 跟 cubic 混合)',()=>{
 test('搖桿中心不能太鈍(使用者回報過):推 10% 至少要有 3% 的輸出',()=>{
   assert.ok(Attitude.stickCurve(0.1)>=0.03,`推 10% 輸出 ${(Attitude.stickCurve(0.1)*100).toFixed(1)}%`);
 });
+
+describe('v2.2:姿態訓練的高度跟著題目(南下 3000、北上 2500)',()=>{
+  test('initialState(2500):高度與 bug 都是 2500;沒給還是 3000',()=>{
+    const a=Attitude.initialState(2500), b=Attitude.initialState();
+    assert.equal(a.alt,2500); assert.equal(a.target,2500);
+    assert.equal(b.alt,3000); assert.equal(b.target,3000);
+  });
+  test('resetAlt(s,2500):高度與 bug 換成 2500,姿態不動;沒給高度就沿用原本的 bug',()=>{
+    const s={...Attitude.initialState(),pitch:7,roll:12,alt:2871};
+    const r=Attitude.resetAlt(s,2500);
+    assert.equal(r.alt,2500); assert.equal(r.target,2500); assert.equal(r.pitch,7); assert.equal(r.roll,12);
+    const r2=Attitude.resetAlt({...r,alt:2400});
+    assert.equal(r2.alt,2500); assert.equal(r2.target,2500);
+  });
+  test('畫面上的選定高度跟著 bug:2500 的題目顯示 2500,不是 3000',()=>{
+    const svg=Attitude.renderSVG(Attitude.initialState(2500));
+    assert.match(svg,/>2500</); assert.doesNotMatch(svg,/>3000</);
+  });
+});

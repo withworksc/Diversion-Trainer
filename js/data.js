@@ -25,6 +25,17 @@ var CHAIN = [
   {k:'ZB',  n:'知本',   lat:22.700, lon:121.050, vor:'GID'}
 ];
 
+/* ---------- 南端(v2.2):貓鼻頭 → 南灣 → 鵝鑾鼻南方,西→東,接在 CHAIN[0] 前面 ----------
+   讓起始點可以落在貓鼻頭、鵝鑾鼻外海。出題器把它當成 CHAIN 的負索引(-1 = 鵝鑾鼻南方、
+   -3 = 貓鼻頭),不併進 CHAIN:CHAIN 的索引(fi)在 VOR 切換、MSA 規則、測試都有用到,
+   插在前面會整串位移。這幾個點直接給海上的座標,不像 CHAIN 載入時才離岸平移——南岸轉彎
+   太急,用鄰點法線平移會切過鵝鑾鼻的岬角。座標是對著航圖底圖目視擺的,見 docs/HANDOFF.md。 */
+var CAPE = [
+  {k:'MBT',  n:'貓鼻頭', lat:21.905, lon:120.715, vor:'HCN'},
+  {k:'NW',   n:'南灣',   lat:21.925, lon:120.775, vor:'HCN'},
+  {k:'ELBS', n:'鵝鑾鼻', lat:21.878, lon:120.845, vor:'HCN'}
+];
+
 var WPT = {
   FL:{n:'枋寮', lat:22.363, lon:120.593},
   DG:{n:'東港', lat:22.467, lon:120.450},
@@ -88,5 +99,5 @@ var OFFSHORE = 1.0; // NM
 })();
 
 return {VAR:VAR, BURN:BURN, RESERVE:RESERVE, OFFSHORE:OFFSHORE,
-  CHAIN:CHAIN, WPT:WPT, VOR:VOR, AD:AD, CORRIDORS:CORRIDORS};
+  CHAIN:CHAIN, CAPE:CAPE, WPT:WPT, VOR:VOR, AD:AD, CORRIDORS:CORRIDORS};
 });

@@ -85,7 +85,7 @@ var CFG = {
   ktToFpm: 101.3,       // 1 kt 的下滑/爬升分量換算成 ft/min 的係數
   // 起始高度 3000 ft,altitude bug 也設在 3000(使用者指定)——學員要守的就是出題那一刻
   // 的高度,所以 bug 跟起始高度是同一個值,不另外設。跟主工具的改降高度是兩回事。
-  altBaseline: 3000,
+  altBaseline: 3000,    // 還沒出題時的預設;出題後照題目的高度(南下 3000、北上 2500,v2.2)
   altPxPerFt: 0.36,     // 高度帶:每英尺幾 px。照實機照片的比例,帶子高度約看得到 ±270 ft
   trendSec: 6,          // 洋紅趨勢線:顯示幾秒後會到的高度(G1000 是 6 秒)
   vsMax: 2000           // fpm,VSI 滿刻度
@@ -123,17 +123,21 @@ function stickCurve(x,expo){
   return (1-k)*v + k*v*v*v;
 }
 
-function initialState(){
+// alt:起始高度,也是 altitude bug(target)。沒給就用 CFG.altBaseline。
+function initialState(alt){
+  var a=(alt==null)?CFG.altBaseline:alt;
   return {pitch:CFG.pitch.trim, rate:0, gust:0,
           roll:0, rollRate:0, rollGust:0,
-          heading:0, alt:CFG.altBaseline, vs:0};
+          heading:0, alt:a, target:a, vs:0};
 }
 
 // 出新題時呼叫:高度歸零重算,姿態本身(pitch/rate/gust)不動——避免換題目時飛機
 // 突然「跳」了一下,只是重新開始算這一題造成多少高度偏移。
-function resetAlt(state){
+// alt:這一題的高度(南下 3000、北上 2500),高度與 bug 都設成它;沒給就沿用原本的 bug。
+function resetAlt(state,alt){
   var s=clone(state);
-  s.alt=CFG.altBaseline;
+  s.target=(alt!=null)?alt:(s.target!=null?s.target:CFG.altBaseline);
+  s.alt=s.target;
   s.vs=vsFrom(s.pitch,s.roll);
   return s;
 }
@@ -396,7 +400,8 @@ function altReadoutSVG(alt){
 }
 
 function altTapeSVG(state){
-  var A=ALT, px=CFG.altPxPerFt, alt=state.alt, x0=A.x, h=A.bot-A.top;
+  var A=ALT, px=CFG.altPxPerFt, alt=state.alt, x0=A.x, h=A.bot-A.top,
+      target=(state.target!=null)?state.target:CFG.altBaseline;
   var g='<rect x="'+x0+'" y="'+A.top+'" width="'+A.w+'" height="'+h+'" fill="#000" fill-opacity="0.32" '+
         'stroke="'+COLOR.frame+'" stroke-width="1"/>'+
         '<g clip-path="url(#altClip)">';
@@ -415,14 +420,14 @@ function altTapeSVG(state){
   // bug 最後畫,疊在讀數框上面(見 bugSVG 的註解);不放進 altClip,位置本來就夾在帶子內
   var bugH=BUG.h*BUG.tape;
   g+='</g>'+altReadoutSVG(alt)+
-     bugSVG(x0, clamp(A.cy-(CFG.altBaseline-alt)*px, A.top+bugH, A.bot-bugH), BUG.tape);
+     bugSVG(x0, clamp(A.cy-(target-alt)*px, A.top+bugH, A.bot-bugH), BUG.tape);
 
   // 上方選定高度框、下方氣壓框(氣壓固定 1013 hPa,照實機照片)
   var sh=A.top-A.selTop;
   g+='<rect x="'+x0+'" y="'+A.selTop+'" width="'+A.w+'" height="'+sh+'" fill="#000" stroke="'+COLOR.frame+'" stroke-width="1"/>'+
      bugSVG(x0+3, A.selTop+sh/2, BUG.sel)+
      '<text x="'+(x0+A.w-3)+'" y="'+(A.selTop+sh/2+4.5)+'" font-size="13" font-weight="700" '+
-       'fill="'+COLOR.cyan+'" text-anchor="end">'+CFG.altBaseline+'</text>'+
+       'fill="'+COLOR.cyan+'" text-anchor="end">'+target+'</text>'+
      '<rect x="'+x0+'" y="'+A.bot+'" width="'+A.w+'" height="'+A.baroH+'" fill="#000" stroke="'+COLOR.frame+'" stroke-width="1"/>'+
      // 「1013」跟「HPA」分開各自定位:用兩個 tspan 靠 text-anchor 一起對齊,有的渲染器
      // 只對齊第一段,HPA 會跑出框外(實際渲染出來才看到的)

@@ -81,9 +81,8 @@ function mapSVG(s,r){
   g+='<circle cx="'+a[0].toFixed(1)+'" cy="'+a[1].toFixed(1)+'" r="'+rr.toFixed(1)+
      '" fill="none" stroke="#0E2732" stroke-width="1" stroke-dasharray="2 5" opacity=".6"/>';
 
-  /* ND 本機符號，指向 divert 前的原航向 */
-  var nxt=Data.CHAIN[Math.ceil(s.pos.fi)-1]||Data.AD.RCKW;
-  var trk=Geo.trueBrg(s.pos,nxt);
+  /* ND 本機符號，指向 divert 前的原航向（南下或北上，見 scenario.js 的 planTrack）*/
+  var trk=s.pos.trk;
   g+='<g transform="translate('+a[0].toFixed(1)+','+a[1].toFixed(1)+') rotate('+trk.toFixed(0)+')">'+
      '<path d="M0,-13 L8,9 L0,5 L-8,9 Z" fill="#F4F0E4" stroke="#0E2732" stroke-width="1.8" stroke-linejoin="round"/>'+
      '</g>';

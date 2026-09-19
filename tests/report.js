@@ -8,11 +8,11 @@ function rng(s){return function(){s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s)
 
 const rnd=rng(seed);
 console.log(`抽樣 ${count} 題(種子 ${seed})\n`);
-console.log('| # | 位置 | 改降場 | 距離/ETE/ETA | 油量需求/剩餘 | MSA | 狀況 |');
-console.log('|---|---|---|---|---|---|---|');
+console.log('| # | 方向 | 位置 | 改降場 | 距離/ETE/ETA | 油量需求/剩餘 | MSA | 狀況 |');
+console.log('|---|---|---|---|---|---|---|---|');
 for(let n=1;n<=count;n++){
   const s=Scenario.makeScenario('auto',rnd), r=Compute.compute(s);
-  console.log(`| ${n} | ${s.pos.n}(R-${r.radial}/${r.dme} ${r.vor.n}) | ${Data.AD[s.dest].n} | `+
+  console.log(`| ${n} | ${s.plan.zh} | ${s.pos.n}(R-${r.radial}/${r.dme} ${r.vor.n}) | ${Data.AD[s.dest].n} | `+
     `${r.totD.toFixed(0)} NM / ${r.totT.toFixed(0)} min / ${r.eta} | `+
     `${r.req.toFixed(1)} gal 需求,剩 ${r.remain.toFixed(1)} gal${s.fuel<r.req?' ⚠️不足':''} | `+
     `${r.ridge?'跨山脊':'—'} | ${s.trig.hold?'HOLD candidate':'TURN'} |`);
