@@ -290,12 +290,12 @@ describe('v2:roll 中性穩定、亂流幅度、跟螢幕更新率無關',()=>{
     const med=a=>a.sort((x,y)=>x-y)[a.length>>1];
     return {pitch:med(pr), roll:med(rr)};
   }
-  // 預設(「中」= v2.0.2:v1 跟 v2 中間、pitch 再低一點)。同一個量法「難」(v2)是 pitch 2.25° / roll 3.6°,
-  // 「中」約 1.4° / 2.1°
-  test('預設亂流(中):不動桿時姿態會跑掉,強度在 v1 與 v2 之間:pitch RMS 1.2~2.1°,坡度平均 1.2~3.2°',()=>{
+  // 預設(「中」):pitch 是 v2.0.2 的值,坡度在 v2.2.1 又乘了 2/3。同一個量法「難」是
+  // pitch 2.25° / roll 2.6°,「中」約 1.4° / 1.5°
+  test('預設亂流(中):不動桿時姿態會跑掉,但不會太誇張:pitch RMS 1.2~2.1°,坡度平均 0.9~2.4°',()=>{
     const d=drift(60,30);
     assert.ok(d.pitch>1.2&&d.pitch<2.1,`pitch RMS ${d.pitch.toFixed(2)}°`);
-    assert.ok(d.roll>1.2&&d.roll<3.2,`|roll| 平均 ${d.roll.toFixed(2)}°`);
+    assert.ok(d.roll>0.9&&d.roll<2.4,`|roll| 平均 ${d.roll.toFixed(2)}°`);
   });
   test('60 Hz 跟 120 Hz 螢幕的亂流強度差不多(隨機項乘 √dt)',()=>{
     const a=drift(60,30), b=drift(120,30);
@@ -307,10 +307,10 @@ describe('v2:roll 中性穩定、亂流幅度、跟螢幕更新率無關',()=>{
     assert.ok(e.pitch<m.pitch&&m.pitch<h.pitch,`pitch RMS 易/中/難 ${[e,m,h].map(d=>d.pitch.toFixed(2)).join('/')}`);
     assert.ok(e.roll<m.roll&&m.roll<h.roll,`|roll| 易/中/難 ${[e,m,h].map(d=>d.roll.toFixed(2)).join('/')}`);
   });
-  test('「易」跟 v1 同一個量級:pitch RMS < 1.4°、坡度平均 < 1.2°',()=>{
+  test('「易」:pitch 跟 v1 同一個量級、坡度更小:pitch RMS < 1.4°、坡度平均 < 0.8°',()=>{
     const e=drift(60,30,'easy');
     assert.ok(e.pitch<1.4,`pitch RMS ${e.pitch.toFixed(2)}°`);
-    assert.ok(e.roll<1.2,`|roll| 平均 ${e.roll.toFixed(2)}°`);
+    assert.ok(e.roll<0.8,`|roll| 平均 ${e.roll.toFixed(2)}°`);
   });
   test('沒給檔位 = 預設「中」(同一組種子結果完全一樣)',()=>{
     let a=Attitude.initialState(), b=Attitude.initialState(); const ra=rng(9), rb=rng(9);
