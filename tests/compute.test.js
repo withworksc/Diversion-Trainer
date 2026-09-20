@@ -106,3 +106,26 @@ describe('v2.2:方向與南端起始點',()=>{
     assert.match(A[4],/大漢山/);
   });
 });
+
+describe('v2.2.1:油量答案只報需要與剩餘',()=>{
+  const trig={zh:'x',hold:false};
+  const base={pos:{lat:22.20,lon:120.90,fi:3.0,n:'x',vor:'HCN',trk:190},dir:'S',plan:Scenario.DIRS.S,
+              dest:'RCLY',hh:10,mm:0,gs:110,alt:3000,fuel:20,lr:false,trig};
+  test('大字只有「需要 X gal」跟「落地剩 Y gal」,沒有保留油的算式',()=>{
+    const r=Compute.compute(base), big=Compute.answers(base,r)[6].match(/<p class="big">.*?<\/p>/)[0];
+    assert.match(big,/需要 <em>[\d.]+ gal<\/em>/);
+    assert.match(big,/落地剩 [\d.]+ gal/);
+    assert.doesNotMatch(big,/保留|＋|＝/);
+  });
+  test('大字的需要 = 這趟燒的油(不含保留油)',()=>{
+    const r=Compute.compute(base), big=Compute.answers(base,r)[6].match(/<p class="big">.*?<\/p>/)[0];
+    assert.ok(big.includes(r.burn.toFixed(1)+' gal'),`burn=${r.burn.toFixed(1)} big=${big}`);
+    assert.ok(!big.includes(r.req.toFixed(1)+' gal'));
+  });
+  test('保留油還是判斷夠不夠的標準:剩油低於 3.3 gal 要出紅字',()=>{
+    const low={...base,dest:'RCKH',fuel:5.0};
+    const r=Compute.compute(low);
+    assert.ok(r.remain<Data.RESERVE);
+    assert.match(Compute.answers(low,r)[6],/不可接受/);
+  });
+});

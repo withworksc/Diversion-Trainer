@@ -167,13 +167,16 @@ function answers(s,r){
   }
   A[5]=td;
 
-  var fu='<p class="big">需要 '+r.burn.toFixed(1)+' ＋ 保留 3.3 ＝ <em>'+r.req.toFixed(1)+' gal</em>　落地剩 '+r.remain.toFixed(1)+' gal</p>';
+  // 只報「這趟要燒多少」跟「落地剩多少」。v2.2.1 拿掉「＋保留 3.3 ＝ 需求」那段算式
+  // (使用者要求);保留油還是判斷夠不夠的標準,只出現在下面的註解句。
+  var fu='<p class="big">需要 <em>'+r.burn.toFixed(1)+' gal</em>　落地剩 '+r.remain.toFixed(1)+' gal</p>';
   fu+='<p class="note">以 6.6 gal/hr × '+r.totT.toFixed(0)+' min 計。現有 '+s.fuel.toFixed(1)+' gal（'+
       (s.lr?'Long Range':'Standard')+' tank），約可續航 '+Math.floor(s.fuel/BURN)+' 小時 '+
       Math.round((s.fuel/BURN%1)*60)+' 分。'+
-      (s.fuel>=r.req
-        ? '扣掉需求後還有 '+(s.fuel-r.req).toFixed(1)+' gal 餘裕，油量不是限制因素。'
-        : '<span style="color:var(--red);font-weight:600">不足以安全抵達加保留油——這個改降場不可接受，要換一個或宣告狀況。</span>')+'</p>';
+      (r.remain>=RESERVE
+        ? '落地剩的油還在 30 分鐘保留油（'+RESERVE.toFixed(1)+' gal）之上，油量不是限制因素。'
+        : '<span style="color:var(--red);font-weight:600">落地剩的油低於 30 分鐘保留油（'+RESERVE.toFixed(1)+
+          ' gal）——這個改降場不可接受，要換一個或宣告狀況。</span>')+'</p>';
   if(!d.lit){
     fu+='<p class="note warn">'+d.n+' 無跑道燈（圖上標示 '+d.elev+' - H'+Math.round(+d.rwy.replace(/[^0-9,]/g,'').replace(',',''))/100+'），日間限定。ETA '+r.eta+
         ' 要和當天日沒時間對一次。</p>';
