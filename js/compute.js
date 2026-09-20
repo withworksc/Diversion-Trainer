@@ -91,10 +91,10 @@ function briefBlankHTML(){
 }
 
 function legTable(r){
-  var h='<table class="legs"><tr><th>航段</th><th>MH</th><th class="n">NM</th><th class="n">min</th></tr>';
+  var h='<table class="legs"><tr><th>航段</th><th>TH</th><th class="n">NM</th><th class="n">min</th></tr>';
   for(var i=0;i<r.legs.length;i++){
     var L=r.legs[i];
-    h+='<tr><td>'+L.from+' → '+L.to+'</td><td>'+fmt3(L.mh)+'°</td><td class="n">'+L.d.toFixed(0)+
+    h+='<tr><td>'+L.from+' → '+L.to+'</td><td>'+fmt3(L.tt)+'°</td><td class="n">'+L.d.toFixed(0)+
        '</td><td class="n">'+L.t.toFixed(0)+'</td></tr>';
   }
   h+='<tr class="tot"><td>合計</td><td></td><td class="n">'+r.totD.toFixed(0)+
@@ -133,14 +133,17 @@ function answers(s,r){
   }else{
     holdTxt='<p class="big"><em>TURN</em></p>'+
       '<p class="note">先用大概的方向把機頭轉出去，再低頭精算。不要停在原航向上算完才轉——這是考官最常抓的點。初始概略轉向 '+
-      fmt3(r.first.mh)+'°。</p>';
+      fmt3(r.first.tt)+'°。</p>';
   }
   A[2]=holdTxt;
 
-  var hd='<p class="big">MH <em>'+fmt3(r.first.mh)+'°</em>';
+  // v2.2.1 起主要答案報真航向(使用者要求)。沒有算風,所以 TH = 圖上量到的 TT;
+  // 磁航向還是算給你,放在下面那行,要用磁羅盤/HSI 時換算。
+  var hd='<p class="big">TH <em>'+fmt3(r.first.tt)+'°</em>';
   if(r.multi) hd+=' <span style="font-size:14px;font-weight:400">（第一段：'+r.first.from+' → '+r.first.to+'）</span>';
   hd+='</p>';
-  hd+='<p class="note">TT '+fmt3(r.first.tt)+'° ＋ VAR '+VAR+'°W ＝ MH '+fmt3(r.first.mh)+'°。</p>';
+  hd+='<p class="note">圖上量到的真航跡 TT '+fmt3(r.first.tt)+'°，沒有算風差，所以 TH 就是這個值。'+
+      '要磁航向的話：TT ＋ VAR '+VAR+'°W ＝ MH '+fmt3(r.first.mh)+'°。</p>';
   A[3]=hd;
 
   var al;

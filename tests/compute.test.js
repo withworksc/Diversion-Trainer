@@ -129,3 +129,31 @@ describe('v2.2.1:油量答案只報需要與剩餘',()=>{
     assert.match(Compute.answers(low,r)[6],/不可接受/);
   });
 });
+
+describe('v2.2.1:航向報真航向',()=>{
+  const trig={zh:'x',hold:false};
+  const s={pos:{lat:22.20,lon:120.90,fi:3.0,n:'x',vor:'HCN',trk:190},dir:'S',plan:Scenario.DIRS.S,
+           dest:'RCLY',hh:10,mm:0,gs:110,alt:3000,fuel:20,lr:false,trig};
+  test('第 4 格大字是 TH,值等於第一段的真航跡',()=>{
+    const r=Compute.compute(s), A=Compute.answers(s,r);
+    const big=A[3].match(/<p class="big">.*?<\/p>/)[0];
+    assert.match(big,/TH <em>\d{3}°<\/em>/);
+    assert.ok(big.includes(Geo.fmt3(r.first.tt)),`TT=${Geo.fmt3(r.first.tt)} big=${big}`);
+    assert.doesNotMatch(big,/MH/);
+  });
+  test('磁航向還是算給你,放在下面的說明裡',()=>{
+    const r=Compute.compute(s), A=Compute.answers(s,r);
+    assert.match(A[3],new RegExp('MH '+Geo.fmt3(r.first.mh)+'°'));
+    assert.match(A[3],/VAR 4°W/);
+  });
+  test('TURN 的初始概略轉向也是真航向',()=>{
+    const r=Compute.compute(s), A=Compute.answers(s,r);
+    assert.ok(A[2].includes('初始概略轉向 '+Geo.fmt3(r.first.tt)+'°'),A[2]);
+  });
+  test('航段表的欄位是 TH',()=>{
+    const r=Compute.compute(s);
+    const t=Compute.legTable(r);
+    assert.match(t,/<th>TH<\/th>/);
+    assert.ok(t.includes(Geo.fmt3(r.legs[0].tt)+'°'));
+  });
+});
