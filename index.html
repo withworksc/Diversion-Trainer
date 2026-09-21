@@ -11,27 +11,33 @@
 
 <header class="top">
   <h1>C8 Diversion Trainer</h1>
-  <span class="sub">RCFN ⇄ RCKW · 底圖：CAA VFR Chart ICAO Taipei FIR 1:500,000 (20 Sep 2025)</span>
-  <span class="clock">計時 <b id="stopwatch">00:00</b></span>
+  <span class="sub" data-i18n="ui.sub">RCFN ⇄ RCKW · 底圖：CAA VFR Chart ICAO Taipei FIR 1:500,000 (20 Sep 2025)</span>
+  <span class="clock"><span data-i18n="ui.clock">計時</span> <b id="stopwatch">00:00</b></span>
 </header>
 
 <div class="controls">
-  <button id="next">出題</button>
-  <button id="reveal" class="ghost">顯示答案</button>
-  <label class="inline">改降場
+  <button id="next" data-i18n="ui.next">出題</button>
+  <button id="reveal" class="ghost" data-i18n="ui.reveal">顯示答案</button>
+  <label class="inline"><span data-i18n="ui.destLabel">改降場</span>
+    <!-- 機場名稱由 js/ui.js 照語言填(data-ad = ICAO 代碼,名字在 js/data.js) -->
     <select id="destPick">
-      <option value="auto">依實際機率隨機</option>
-      <option value="RCKH">RCKH 高雄</option>
-      <option value="RCLY">RCLY 蘭嶼</option>
-      <option value="RCFN">RCFN 豐年</option>
-      <option value="RCGI">RCGI 綠島</option>
-      <option value="RCYU">RCYU 花蓮</option>
-      <option value="RCKW">RCKW 恆春</option>
+      <option value="auto" data-i18n="ui.destAuto">依實際機率隨機</option>
+      <option value="RCKH" data-ad="RCKH">RCKH 高雄</option>
+      <option value="RCLY" data-ad="RCLY">RCLY 蘭嶼</option>
+      <option value="RCFN" data-ad="RCFN">RCFN 豐年</option>
+      <option value="RCGI" data-ad="RCGI">RCGI 綠島</option>
+      <option value="RCYU" data-ad="RCYU">RCYU 花蓮</option>
+      <option value="RCKW" data-ad="RCKW">RCKW 恆春</option>
     </select>
   </label>
-  <button id="attToggle" class="ghost ghost-toggle" aria-pressed="false">姿態訓練（prototype）</button>
+  <!-- 語言(v2.2.1a):預設中文,選過會記住。字串在 js/i18n.js -->
+  <div class="lang" id="langPick" role="group" aria-label="Language / 語言">
+    <button type="button" data-lang="zh" aria-pressed="true">中文</button>
+    <button type="button" data-lang="en" aria-pressed="false">EN</button>
+  </div>
+  <button id="attToggle" class="ghost ghost-toggle" aria-pressed="false" data-i18n="ui.attToggle">姿態訓練（prototype）</button>
   <!-- 兩段各自不斷行,只在分號後面換行(見 css/style.css 的 .att-hint) -->
-  <span class="att-hint" id="attHint"><span>接搖桿請用 Chrome、Edge、Brave 等 Chromium 核心瀏覽器；</span><wbr><span>Safari 讀不到飛行搖桿。</span></span>
+  <span class="att-hint" id="attHint"><span data-i18n="ui.attHint1">接搖桿請用 Chrome、Edge、Brave 等 Chromium 核心瀏覽器；</span><wbr><span data-i18n="ui.attHint2">Safari 讀不到飛行搖桿。</span></span>
 </div>
 
 <!-- 上排:SITUATION、平面圖、姿態訓練(prototype)。.cols 這個 class 名稱不要改——
@@ -39,34 +45,35 @@
 <div class="cols">
   <section class="brief" id="brief"></section>
   <section class="mapcell">
-    <h2>CHART</h2>
+    <h2 data-i18n="ui.chart">CHART</h2>
     <div id="map"></div>
   </section>
   <section class="attitude" id="attitude" hidden>
     <div class="att-head">
-      <h2>姿態訓練 <span class="beta">prototype</span></h2>
+      <h2><span data-i18n="ui.attTitle">姿態訓練</span> <span class="beta">prototype</span></h2>
       <!-- 亂流大小(v2.1)。data-level 對應 js/attitude.js 的 CFG.turbulence -->
       <div class="turb" id="turbPick" role="group" aria-label="亂流大小">
-        <span>亂流</span>
-        <button type="button" data-level="easy" aria-pressed="false">易</button>
-        <button type="button" data-level="medium" aria-pressed="true">中</button>
-        <button type="button" data-level="hard" aria-pressed="false">難</button>
+        <span data-i18n="ui.turb">亂流</span>
+        <button type="button" data-level="easy" aria-pressed="false" data-i18n="ui.turbEasy">易</button>
+        <button type="button" data-level="medium" aria-pressed="true" data-i18n="ui.turbMedium">中</button>
+        <button type="button" data-level="hard" aria-pressed="false" data-i18n="ui.turbHard">難</button>
       </div>
     </div>
     <div id="aiHost"></div>
-    <p class="ai-note" id="aiNote">出題後開始亂流。</p>
+    <p class="ai-note" id="aiNote" data-i18n="ui.aiNoteIdle">出題後開始亂流。</p>
   </section>
 </div>
 
 <!-- 下排:改降程序八格,桌面版橫排 -->
 <section class="sheet" id="sheet"></section>
 
-<p class="tip">
+<p class="tip" data-i18n="ui.tip">
   這個工具只給答案，不判對錯。距離與航向由圖上座標推算，誤差約 1–2 NM / 2–3°，正式作業請以航圖實量為準。
 </p>
 
 </div>
 
+<script src="js/i18n.js"></script>
 <script src="js/geo.js"></script>
 <script src="js/data.js"></script>
 <script src="js/scenario.js"></script>

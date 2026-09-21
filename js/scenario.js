@@ -1,16 +1,16 @@
 // 航路與出題邏輯。純函式、不碰 DOM：出題器不讀任何表單元素，
 // 強制改降場、隨機亂數都用參數注入（ui.js 負責讀表單、compute.js 的測試靠這個重現題目）。
 (function(root, factory){
-  var Geo, Data;
+  var Geo, Data, I18n;
   if (typeof module === 'object' && module.exports) {
-    Geo = require('./geo.js'); Data = require('./data.js');
+    Geo = require('./geo.js'); Data = require('./data.js'); I18n = require('./i18n.js');
   } else {
-    Geo = root.C8.geo; Data = root.C8.data;
+    Geo = root.C8.geo; Data = root.C8.data; I18n = root.C8.i18n;
   }
-  var m = factory(Geo, Data);
+  var m = factory(Geo, Data, I18n);
   if (typeof module === 'object' && module.exports) module.exports = m;
   else { root.C8 = root.C8 || {}; root.C8.scenario = m; }
-})(this, function(Geo, Data){
+})(this, function(Geo, Data, I18n){
 'use strict';
 
 var CHAIN = Data.CHAIN, CAPE = Data.CAPE, AD = Data.AD;
@@ -18,9 +18,10 @@ var CHAIN = Data.CHAIN, CAPE = Data.CAPE, AD = Data.AD;
 /* ---------- 方向(v2.2 起南下、北上都有) ----------
    南下是原本的 RCFN → RCKW;北上是回程 RCKW → RCFN。alt 是出題當下的高度:C8 走廊
    南下 3,000 ft、北上 2,500 ft(docs/HANDOFF.md §2.7),姿態訓練的高度表也跟著這個值。 */
+// zh/en 的方向字在 js/i18n.js 的 dir.S / dir.N,這裡只留資料
 var DIRS = {
-  S:{from:'RCFN', to:'RCKW', zh:'南下', alt:3000},
-  N:{from:'RCKW', to:'RCFN', zh:'北上', alt:2500}
+  S:{from:'RCFN', to:'RCKW', alt:3000},
+  N:{from:'RCKW', to:'RCFN', alt:2500}
 };
 var NORTH_SHARE = 0.5;
 
@@ -40,8 +41,26 @@ var FI_MIN = -CAPE.length, FI_MAX = CHAIN.length-1;
 var COAST_FI = [1.2, 8.0], CAPE_FI = [FI_MIN, 0.6], CAPE_SHARE = 0.2;
 function node(i){ return i>=0 ? CHAIN[i] : CAPE[CAPE.length+i]; }
 
-var DIR8 = ['北','東北','東','東南','南','西南','西','西北'];
+// 八方位的代號(對應 i18n 的 side.*);描述文字兩種語言都在 i18n
+var DIR8 = ['N','NE','E','SE','S','SW','W','NW'];
 function compass(from,to){ return DIR8[Math.round(Geo.trueBrg(from,to)/45)%8]; }
+
+// 位置描述用的節點查表(CHAIN + CAPE,用 k 當 key)
+var NODES = {};
+(function(){
+  var i;
+  for(i=0;i<CHAIN.length;i++) NODES[CHAIN[i].k]=CHAIN[i];
+  for(i=0;i<CAPE.length;i++) NODES[CAPE[i].k]=CAPE[i];
+})();
+
+/* 位置的文字描述。出題時只存結構(ref 參考點、side 方位、d 距離),文字在這裡才組出來——
+   這樣切換語言時,已經出的題目也會跟著換(v2.2.1a)。
+   位置本身學員是看 radial/DME 判斷,這行只是輔助說明(使用者確認過)。 */
+function posName(pos,lang){
+  var ref=NODES[pos.ref], name=Data.ptName(ref,lang);
+  if(pos.side==='on') return I18n.t(lang,'pos.on',{ref:name});
+  return I18n.t(lang,'pos.off',{ref:name, side:I18n.t(lang,'side.'+pos.side), d:pos.d.toFixed(0)});
+}
 
 // 原航線在這一點的真航向(改降前機頭指的方向,地圖上的本機符號用)。
 // 南下往 fi 變小的方向飛,過了貓鼻頭就是 RCKW;北上反過來,過了知本就是 RCFN。
@@ -63,9 +82,9 @@ function makePos(rnd,dir){
   var ni=Math.max(FI_MIN,Math.min(FI_MAX,Math.round(fi)));
   var ref=node(ni), d=Geo.dist(ref,me);
   // 東岸是南北向,照舊說「北方/南方」;南端海岸是東西向,改用八方位
-  var side = fi<0.5 ? compass(ref,me) : (fi>ni?'北':'南');
-  var nm = d<1.6 ? ref.n+'外海' : ref.n+side+'方'+d.toFixed(0)+' NM 外海';
-  return {k:'XC', n:nm, lat:me.lat, lon:me.lon, fi:fi, vor:(fi<4.5?'HCN':'GID'), trk:planTrack(me,fi,dir)};
+  var side = (d<1.6) ? 'on' : (fi<0.5 ? compass(ref,me) : (fi>ni?'N':'S'));
+  return {k:'XC', ref:ref.k, side:side, d:d, lat:me.lat, lon:me.lon, fi:fi,
+          vor:(fi<4.5?'HCN':'GID'), trk:planTrack(me,fi,dir)};
 }
 
 function buildRoute(pos,destKey){
@@ -102,15 +121,22 @@ function pickDest(force,rnd){
   return WEIGHT[WEIGHT.length-1][0];
 }
 
-// {AD} = 原目的地(南下 RCKW、北上 RCFN),{DIR} = 南下/北上,出題時代換
+// 考官給的狀況。只存 id,文字兩種語言都在 js/i18n.js 的 trig.*(用 {ad} 原目的地、
+// {dir} 南下/北上 代換),切換語言時已經出的題目也會跟著換。
 var TRIGGERS=[
-  {zh:'{AD} 場面 METAR 報 BKN008，低於目視最低條件。', en:'destination weather below VFR minima', hold:false},
-  {zh:'考官指示：立即改降。', en:'instructor-directed diversion', hold:false},
-  {zh:'前方沿岸雲底降低，繼續{DIR}無法維持 VFR。', en:'deteriorating VFR conditions ahead', hold:false},
-  {zh:'{AD} 臨時 NOTAM 場面關閉，時間未定。', en:'destination aerodrome closed by NOTAM', hold:false},
-  {zh:'{AD} 現在有跑道入侵處理中，預計 25 分鐘後恢復；燃油充足。', en:'destination temporarily unavailable, expect 25 minutes', hold:true},
-  {zh:'後座學員身體不適，要求儘速落地。', en:'passenger discomfort, requesting earliest landing', hold:false}
+  {id:'wx',         hold:false},
+  {id:'instructor', hold:false},
+  {id:'coast',      hold:false},
+  {id:'notam',      hold:false},
+  {id:'runway',     hold:true},
+  {id:'pax',        hold:false}
 ];
+
+// s:makeScenario 的回傳值
+function trigText(s,lang){
+  return I18n.t(lang,'trig.'+s.trig.id,
+    {ad:s.plan.to, dir:I18n.t(lang,'dir.'+s.dir)});
+}
 
 function lerp(rng,a,b){return a+rng()*(b-a)}
 function pick(a,rng){return a[Math.floor(rng()*a.length)]}
@@ -122,8 +148,7 @@ function makeScenario(force,rnd){
   var dir=pickDir(force,rnd), plan=DIRS[dir];
   var pos=makePos(rnd,dir);
   var destKey=pickDest(force,rnd);
-  var t=pick(TRIGGERS,rnd);
-  var trig={zh:t.zh.replace('{AD}',plan.to).replace('{DIR}',plan.zh), en:t.en, hold:t.hold};
+  var trig=pick(TRIGGERS,rnd);
   var hh=Math.floor(lerp(rnd,7,16)), mm=Math.floor(lerp(rnd,0,60));
   var gs=Math.round(lerp(rnd,85,158)/5)*5;
   var lr=rnd()<0.35;
@@ -132,6 +157,6 @@ function makeScenario(force,rnd){
 }
 
 return {WEIGHT:WEIGHT, TRIGGERS:TRIGGERS, DIRS:DIRS, NORTH_SHARE:NORTH_SHARE, CAPE_SHARE:CAPE_SHARE,
-  makePos:makePos, buildRoute:buildRoute, crossesRidge:crossesRidge, pickDir:pickDir,
-  pickDest:pickDest, makeScenario:makeScenario};
+  makePos:makePos, posName:posName, trigText:trigText, buildRoute:buildRoute,
+  crossesRidge:crossesRidge, pickDir:pickDir, pickDest:pickDest, makeScenario:makeScenario};
 });

@@ -24,11 +24,16 @@ test('makePos:南端(貓鼻頭到鵝鑾鼻)的起始點約佔 CAPE_SHARE(2 萬�
   assert.ok(Math.abs(pct-exp)<2,`南端 ${pct.toFixed(1)}%,預期約 ${exp}%`);
 });
 
-test('makePos:南端的位置名稱是鵝鑾鼻、南灣、貓鼻頭外海,不會出現「北方/南方」以外的東岸說法錯置',()=>{
+test('makePos:南端的位置名稱是鵝鑾鼻、南灣、貓鼻頭外海;英文版用航圖上的拼法',()=>{
   const r=rng(12);
   for(let i=0;i<3000;i++){
     const p=Scenario.makePos(r);
-    if(p.fi<0) assert.match(p.n,/^(鵝鑾鼻|南灣|貓鼻頭)(外海|(北|東北|東|東南|南|西南|西|西北)方\d+ NM 外海)$/,p.n);
+    if(p.fi>=0) continue;
+    assert.match(Scenario.posName(p,'zh'),
+      /^(鵝鑾鼻|南灣|貓鼻頭)(外海|(北|東北|東|東南|南|西南|西|西北)方\d+ NM 外海)$/,Scenario.posName(p,'zh'));
+    assert.match(Scenario.posName(p,'en'),
+      /^(off (Eluanbi|Nanwan|Maobitou)|\d+ NM (north|northeast|east|southeast|south|southwest|west|northwest) of (Eluanbi|Nanwan|Maobitou), offshore)$/,
+      Scenario.posName(p,'en'));
   }
 });
 
@@ -131,10 +136,16 @@ describe('v2.2:南下/北上、回航場不進隨機',()=>{
     const r=rng(24);
     for(let i=0;i<3000;i++){
       const s=Scenario.makeScenario('auto',r);
-      assert.doesNotMatch(s.trig.zh,/\{AD\}|\{DIR\}/);
-      const other=s.plan.to==='RCKW'?'RCFN':'RCKW';
-      assert.ok(!s.trig.zh.includes(other),`${s.dir}:${s.trig.zh}`);
-      if(s.trig.zh.includes('繼續')) assert.ok(s.trig.zh.includes('繼續'+s.plan.zh),s.trig.zh);
+      for(const lang of ['zh','en']){
+        const txt=Scenario.trigText(s,lang);
+        assert.doesNotMatch(txt,/\{ad\}|\{dir\}/);
+        const other=s.plan.to==='RCKW'?'RCFN':'RCKW';
+        assert.ok(!txt.includes(other),`${s.dir}/${lang}:${txt}`);
+      }
+      if(s.trig.id==='coast'){
+        assert.ok(Scenario.trigText(s,'zh').includes(s.dir==='N'?'北上':'南下'),Scenario.trigText(s,'zh'));
+        assert.ok(Scenario.trigText(s,'en').includes(s.dir==='N'?'northbound':'southbound'),Scenario.trigText(s,'en'));
+      }
     }
   });
   test('不認得的改降場代碼當成隨機,不會壞掉',()=>{

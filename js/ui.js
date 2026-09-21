@@ -3,20 +3,39 @@
 (function(){
 'use strict';
 var Scenario = window.C8.scenario, Compute = window.C8.compute, Attitude = window.C8.attitude,
-    Chart = window.C8.map;
-var ITEMS = Compute.ITEMS;
+    Chart = window.C8.map, Data = window.C8.data, I18n = window.C8.i18n;
 
-var S=null;
+var S=null, revealed=false;
+
+/* ---------- 語言(v2.2.1a) ----------
+   預設中文,選過記在 localStorage。切換是「立刻重畫」,不重新出題:靜態文字照 data-i18n
+   重填,已經出的題目跟答案用同一個情境重算字串(出題器只存結構,文字都是畫面時才組的)。 */
+var LANG_KEY='c8.lang';
+var lang=(function(){
+  try{ var v=localStorage.getItem(LANG_KEY); if(I18n.STR[v]) return v; }catch(e){}
+  return I18n.DEFAULT;
+})();
+function t(key,vars){ return I18n.t(lang,key,vars); }
+
+function applyStatic(){
+  document.documentElement.lang = (lang==='en') ? 'en' : 'zh-Hant';
+  var els=document.querySelectorAll('[data-i18n]'),i;
+  for(i=0;i<els.length;i++) els[i].textContent=t(els[i].getAttribute('data-i18n'));
+  var ads=document.querySelectorAll('[data-ad]');
+  for(i=0;i<ads.length;i++) ads[i].textContent=Data.L(Data.AD[ads[i].getAttribute('data-ad')],'n',lang);
+  var bs=langPick.querySelectorAll('button[data-lang]');
+  for(i=0;i<bs.length;i++) bs[i].setAttribute('aria-pressed', bs[i].getAttribute('data-lang')===lang);
+}
 
 function render(reveal){
   var r=Compute.compute(S);
-  document.getElementById('brief').innerHTML=Compute.briefHTML(S,r);
+  document.getElementById('brief').innerHTML=Compute.briefHTML(S,r,lang);
   document.getElementById('map').innerHTML=Chart.mapSVG(S,r);
-  var A=reveal?Compute.answers(S,r):null;
-  var h='';
-  for(var i=0;i<ITEMS.length;i++){
+  var A=reveal?Compute.answers(S,r,lang):null;
+  var items=Compute.items(lang), h='';
+  for(var i=0;i<items.length;i++){
     h+='<div class="item"><span class="num">'+(i+1)+'</span>'+
-       '<h3>'+ITEMS[i][1]+'<span class="en">'+ITEMS[i][0]+'</span></h3>'+
+       '<h3>'+items[i].title+(items[i].sub?'<span class="en">'+items[i].sub+'</span>':'')+'</h3>'+
        (A?'<div class="ans">'+A[i]+'</div>':'<div class="blank"></div>')+
        '</div>';
   }
@@ -35,17 +54,18 @@ function startClock(){clearInterval(timer);t0=Date.now();tick();timer=setInterva
 function stopClock(){clearInterval(timer)}
 
 function blankSheet(){
-  var h='',i;
-  for(i=0;i<ITEMS.length;i++){
+  var items=Compute.items(lang), h='', i;
+  for(i=0;i<items.length;i++){
     h+='<div class="item"><span class="num">'+(i+1)+'</span>'+
-       '<h3>'+ITEMS[i][1]+'<span class="en">'+ITEMS[i][0]+'</span></h3><div class="blank"></div></div>';
+       '<h3>'+items[i].title+(items[i].sub?'<span class="en">'+items[i].sub+'</span>':'')+'</h3>'+
+       '<div class="blank"></div></div>';
   }
   document.getElementById('sheet').innerHTML=h;
 }
 function idle(){
-  document.getElementById('brief').innerHTML=Compute.briefBlankHTML();
+  document.getElementById('brief').innerHTML=Compute.briefBlankHTML(lang);
   // 地圖格先放一張同尺寸的空白底,出題前後格子大小不變
-  document.getElementById('map').innerHTML='<div class="mapwrap map-idle"><span>出題後顯示改降航路</span></div>';
+  document.getElementById('map').innerHTML='<div class="mapwrap map-idle"><span>'+t('ui.mapIdle')+'</span></div>';
   blankSheet();
   document.getElementById('reveal').disabled=true;
   var e=document.getElementById('stopwatch');e.textContent='00:00';e.className='';
@@ -54,6 +74,7 @@ function idle(){
 function newQ(){
   var force=document.getElementById('destPick').value;
   S=Scenario.makeScenario(force);
+  revealed=false;
   render(false);
   document.getElementById('reveal').disabled=false;
   startClock();
@@ -65,8 +86,20 @@ document.getElementById('next').addEventListener('click',newQ);
 document.getElementById('reveal').addEventListener('click',function(){
   stopClock();
   this.disabled=true;
+  revealed=true;
   render(true);
   questionActive=false;
+});
+
+var langPick=document.getElementById('langPick');
+langPick.addEventListener('click',function(e){
+  var b=e.target.closest('button[data-lang]'), v=b&&b.getAttribute('data-lang');
+  if(!v||!I18n.STR[v]||v===lang) return;
+  lang=v;
+  try{ localStorage.setItem(LANG_KEY,lang); }catch(err){}
+  applyStatic();
+  if(S) render(revealed); else idle();
+  setNote();
 });
 
 /* ---------- 姿態訓練(prototype) ----------
@@ -145,22 +178,16 @@ document.addEventListener('keyup',function(e){
 
 // 搖桿狀態列:直接把偵測到的裝置名稱跟前四軸的即時數值印出來。接了 HOTAS 卻沒反應時,
 // 一眼就能看出是「根本沒偵測到」還是「偵測到了但我們讀錯軸」。
-var NOTE_KEY = IS_SAFARI
-  ? '你現在用的是 Safari,讀不到飛行搖桿——請改用 Chrome、Edge 或 Brave。'+
-    '暫時可以用方向鍵:↑↓ 控 pitch、←→ 控坡度。'
-  : '未偵測到搖桿——請先按一下搖桿上的任一按鈕(瀏覽器要按過按鈕才會把搖桿交出來)。'+
-    '也可以先用方向鍵:↑↓ 控 pitch、←→ 控坡度。';
 document.getElementById('attHint').classList.toggle('warn',IS_SAFARI);
 function setNote(){
-  var t;
+  var txt;
   if(padInfo){
     var ax=padInfo.axes.slice(0,4).map(function(v,i){return 'ax'+i+' '+v.toFixed(2)}).join('  ');
-    t='搖桿:'+padInfo.id.slice(0,34)+'  ('+padInfo.axes.length+' 軸)\n'+
-      ax+'　　目前用 ax1 控 pitch、ax0 控坡度';
+    txt=t('ui.padFound',{id:padInfo.id.slice(0,34), n:padInfo.axes.length, axes:ax});
   }else{
-    t=NOTE_KEY;
+    txt=t(IS_SAFARI?'ui.padSafari':'ui.padNone');
   }
-  if(aiNote.textContent!==t) aiNote.textContent=t;
+  if(aiNote.textContent!==txt) aiNote.textContent=txt;
 }
 
 // 亂流大小(v2.1):易/中/難,強度定義在 attitude.js 的 CFG.turbulence。記在 localStorage,
@@ -226,5 +253,6 @@ attToggle.addEventListener('click',function(){
   }
 });
 
+applyStatic();
 idle();
 })();

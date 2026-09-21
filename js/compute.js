@@ -1,20 +1,27 @@
 // 答案模型：把情境（makeScenario 的回傳值）算成數字結果，再組成畫面用的字串
 // （SITUATION 簡報、航段表、八格答案）。字串組裝不碰 DOM，ui.js 只負責把結果塞進 innerHTML。
 (function(root, factory){
-  var Geo, Data, Scenario;
+  var Geo, Data, Scenario, I18n;
   if (typeof module === 'object' && module.exports) {
     Geo = require('./geo.js'); Data = require('./data.js');
-    Scenario = require('./scenario.js');
+    Scenario = require('./scenario.js'); I18n = require('./i18n.js');
   } else {
-    Geo = root.C8.geo; Data = root.C8.data; Scenario = root.C8.scenario;
+    Geo = root.C8.geo; Data = root.C8.data; Scenario = root.C8.scenario; I18n = root.C8.i18n;
   }
-  var m = factory(Geo, Data, Scenario);
+  var m = factory(Geo, Data, Scenario, I18n);
   if (typeof module === 'object' && module.exports) module.exports = m;
   else { root.C8 = root.C8 || {}; root.C8.compute = m; }
-})(this, function(Geo, Data, Scenario){
+})(this, function(Geo, Data, Scenario, I18n){
 'use strict';
 
 var VAR=Data.VAR, BURN=Data.BURN, RESERVE=Data.RESERVE, AD=Data.AD;
+// 所有畫面字串都經過 t():lang 是 'zh'(預設)或 'en',字串本體在 js/i18n.js
+function t(lang,key,vars){ return I18n.t(lang,key,vars); }
+function adName(key,lang){ return Data.L(AD[key],'n',lang); }
+// 兩句接在一起時,中文不用空格,英文要
+function join(lang,a,b){ return a+((lang==='en')?' ':'')+b; }
+// 航段端點的名字:本機位置用位置描述,其他是機場
+function ptLabel(pt,lang){ return (pt.k==='XC') ? Scenario.posName(pt,lang) : Data.L(pt,'n',lang); }
 function mag(t){return Geo.mag(t,VAR)}
 function fmt3(x){return Geo.fmt3(x)}
 
@@ -34,7 +41,8 @@ function compute(s){
     var tt=Geo.trueBrg(pts[i],pts[i+1]);
     var d=Geo.dist(pts[i],pts[i+1]);
     var t=d/s.gs*60;
-    legs.push({from:pts[i].n||pts[i].k,to:pts[i+1].n,d:d,tt:tt,mh:mag(tt),t:t});
+    // 存點本身,不存名字:名字要看語言,畫面時才組(見 ptLabel)
+    legs.push({fromPt:pts[i],toPt:pts[i+1],d:d,tt:tt,mh:mag(tt),t:t});
     totD+=d;totT+=t;
   }
   r.legs=legs;r.totD=totD;r.totT=totT;r.pts=pts;
@@ -56,21 +64,22 @@ function compute(s){
 
 /* ---------- SITUATION 簡報 ----------
    平面圖不在這裡:版面拆成上排三格之後,地圖有自己的格子,由 ui.js 直接呼叫 Map.mapSVG() 寫進去。 */
-function briefHTML(s,r){
+function briefHTML(s,r,lang){
   var d=AD[s.dest];
-  var speedRow='<div class="row"><dt>地速</dt><dd>GS '+s.gs+' kt</dd></div>';
+  var speedRow='<div class="row"><dt>'+t(lang,'brief.gs')+'</dt><dd>GS '+s.gs+' kt</dd></div>';
   // 標題列帶出原航線與方向(v2.2 起南下、北上都有)。放標題列不放內容:內容格的高度
   // 在橫帶版面是算好的,多一行會讓整排跳動(見 docs/HANDOFF.md §13)
-  var leg=s.plan?' <span class="leg">'+s.plan.from+' → '+s.plan.to+' '+s.plan.zh+'</span>':'';
+  var leg=s.plan?' <span class="leg">'+s.plan.from+' → '+s.plan.to+' '+t(lang,'dir.'+s.dir)+'</span>':'';
   return '<h2>SITUATION'+leg+'</h2><dl>'+
-    '<div class="row"><dt>時間</dt><dd>'+hhmm(s.hh,s.mm)+' L</dd></div>'+
-    '<div class="row"><dt>位置</dt><dd>'+r.vor.n+' '+r.vor.f+'<br>R-'+r.radial+' / '+r.dme+' DME'+
-      '<small>'+s.pos.n+'</small></dd></div>'+
-    '<div class="row"><dt>高度</dt><dd>'+s.alt.toLocaleString()+' ft</dd></div>'+
+    '<div class="row"><dt>'+t(lang,'brief.time')+'</dt><dd>'+hhmm(s.hh,s.mm)+' L</dd></div>'+
+    '<div class="row"><dt>'+t(lang,'brief.pos')+'</dt><dd>'+r.vor.n+' '+r.vor.f+'<br>R-'+r.radial+' / '+r.dme+' DME'+
+      '<small>'+Scenario.posName(s.pos,lang)+'</small></dd></div>'+
+    '<div class="row"><dt>'+t(lang,'brief.alt')+'</dt><dd>'+s.alt.toLocaleString()+' ft</dd></div>'+
     speedRow+
-    '<div class="row"><dt>剩油</dt><dd>'+s.fuel.toFixed(1)+' gal<small>'+(s.lr?'Long Range tank':'Standard tank')+'</small></dd></div>'+
-    '<div class="row dest"><dt>改降</dt><dd>'+d.n+'</dd></div>'+
-    '</dl><div class="sit"><b>考官給的狀況</b>'+s.trig.zh+'</div>';
+    '<div class="row"><dt>'+t(lang,'brief.fuel')+'</dt><dd>'+s.fuel.toFixed(1)+' gal<small>'+
+      t(lang,s.lr?'brief.tankLR':'brief.tankStd')+'</small></dd></div>'+
+    '<div class="row dest"><dt>'+t(lang,'brief.dest')+'</dt><dd>'+adName(s.dest,lang)+'</dd></div>'+
+    '</dl><div class="sit"><b>'+t(lang,'brief.sitLabel')+'</b>'+Scenario.trigText(s,lang)+'</div>';
 }
 
 // 還沒出題時的 SITUATION:跟 briefHTML 同樣六列(標題要跟上面一致),值先空著。
@@ -78,117 +87,95 @@ function briefHTML(s,r){
 // 「位置」出題後固定是三行(VOR、R-/DME、目視位置),空白版在「—」上下各塞一段同樣大小的 .ph:
 // 平常 display:none,只有 SITUATION 攤成一條橫帶時才用 visibility:hidden 佔住那三行的高度
 // (見 css/style.css),橫帶出題前後才會一樣高;「—」夾在中間,跟其他格的「—」對齊。
-function briefBlankHTML(){
-  var labels=['時間','位置','高度','地速','剩油','改降'], h='', i;
+function briefBlankHTML(lang){
+  var keys=['brief.time','brief.pos','brief.alt','brief.gs','brief.fuel','brief.dest'], h='', i;
   var pos='<span class="ph" aria-hidden="true">R-000 / 00 DME<br></span>—'+
-          '<span class="ph" aria-hidden="true"><small>達仁外海</small></span>';
-  for(i=0;i<labels.length;i++){
-    h+='<div class="row'+(labels[i]==='改降'?' dest':'')+'"><dt>'+labels[i]+'</dt><dd class="nil">'+
-       (labels[i]==='位置'?pos:'—')+'</dd></div>';
+          '<span class="ph" aria-hidden="true"><small>'+t(lang,'brief.blankPos')+'</small></span>';
+  for(i=0;i<keys.length;i++){
+    h+='<div class="row'+(keys[i]==='brief.dest'?' dest':'')+'"><dt>'+t(lang,keys[i])+'</dt><dd class="nil">'+
+       (keys[i]==='brief.pos'?pos:'—')+'</dd></div>';
   }
   return '<h2>SITUATION</h2><dl>'+h+'</dl>'+
-    '<div class="sit"><b>考官給的狀況</b>按「出題」開始。題目出現的同時開始計時。</div>';
+    '<div class="sit"><b>'+t(lang,'brief.sitLabel')+'</b>'+t(lang,'brief.blankSit')+'</div>';
 }
 
-function legTable(r){
-  var h='<table class="legs"><tr><th>航段</th><th>TH</th><th class="n">NM</th><th class="n">min</th></tr>';
+function legTable(r,lang){
+  var h='<table class="legs"><tr><th>'+t(lang,'leg.leg')+'</th><th>TH</th><th class="n">NM</th><th class="n">min</th></tr>';
   for(var i=0;i<r.legs.length;i++){
     var L=r.legs[i];
-    h+='<tr><td>'+L.from+' → '+L.to+'</td><td>'+fmt3(L.tt)+'°</td><td class="n">'+L.d.toFixed(0)+
+    h+='<tr><td>'+ptLabel(L.fromPt,lang)+' → '+ptLabel(L.toPt,lang)+'</td><td>'+fmt3(L.tt)+'°</td><td class="n">'+L.d.toFixed(0)+
        '</td><td class="n">'+L.t.toFixed(0)+'</td></tr>';
   }
-  h+='<tr class="tot"><td>合計</td><td></td><td class="n">'+r.totD.toFixed(0)+
+  h+='<tr class="tot"><td>'+t(lang,'leg.total')+'</td><td></td><td class="n">'+r.totD.toFixed(0)+
      '</td><td class="n">'+r.totT.toFixed(0)+'</td></tr></table>';
   return h;
 }
 
-var ITEMS=[
-  ['Current time','現在時間'],
-  ['Current position','現在位置'],
-  ['Turn or Hold','轉向或待命'],
-  ['Heading','航向'],
-  ['Altitude','高度'],
-  ['Time and distance','時間與距離'],
-  ['Fuel required & remain','所需與剩餘油量'],
-  ['Revise to ATC & Brief to IP','通報與提示']
-];
+// 八格的標題。中文版大標中文、小標英文;英文版只有英文(小標留空,見 js/ui.js)
+function items(lang){
+  var out=[],i;
+  for(i=1;i<=8;i++) out.push({title:t(lang,'item.'+i), sub:(lang==='en')?'':t('en','item.'+i)});
+  return out;
+}
+var ITEMS_LEN=8;
 
 /* ---------- 八格答案 ---------- */
-function answers(s,r){
+function answers(s,r,lang){
   var d=AD[s.dest];
   var A=[];
 
   A[0]='<p class="big">'+hhmm(s.hh,s.mm)+' L</p>'+
-    '<p class="note">這是 ETE 的起算點，記在板子上。所有後面的 ETA、油量都從這個時間往前推。</p>';
+    '<p class="note">'+t(lang,'a1.note')+'</p>';
 
   A[1]='<p class="big">'+r.vor.n+' '+r.vor.f+' <em>R-'+r.radial+' / '+r.dme+' DME</em></p>'+
-    '<p class="note">目視對照：'+s.pos.n+'，高度 '+s.alt.toLocaleString()+' ft。'+
-    (s.pos.vor==='GID'?'這一段用 GID，因為中央山脈會遮蔽 HCN。':'大武以南 HCN 收得到，用 HCN 比較直觀。')+'</p>';
+    '<p class="note">'+join(lang, t(lang,'a2.note',{pos:Scenario.posName(s.pos,lang), alt:s.alt.toLocaleString()}),
+      t(lang,s.pos.vor==='GID'?'a2.gid':'a2.hcn'))+'</p>';
 
-  var holdTxt;
-  if(s.trig.hold){
-    holdTxt='<p class="big"><em>HOLD</em></p>'+
-      '<p class="note">狀況是暫時性的、有明確恢復時間，油量也夠。在現在位置或指定點待命比立刻飛 '+r.totD.toFixed(0)+
-      ' NM 到別的場合理。待命時要報 ATC、設定 holding 高度、算出「最晚決斷時間」——也就是油量剩到只夠飛改降場加保留油的那一刻。</p>';
-  }else{
-    holdTxt='<p class="big"><em>TURN</em></p>'+
-      '<p class="note">先用大概的方向把機頭轉出去，再低頭精算。不要停在原航向上算完才轉——這是考官最常抓的點。初始概略轉向 '+
-      fmt3(r.first.tt)+'°。</p>';
-  }
-  A[2]=holdTxt;
+  A[2]= s.trig.hold
+    ? '<p class="big"><em>HOLD</em></p><p class="note">'+t(lang,'a3.holdNote',{nm:r.totD.toFixed(0)})+'</p>'
+    : '<p class="big"><em>TURN</em></p><p class="note">'+t(lang,'a3.turnNote',{hdg:fmt3(r.first.tt)})+'</p>';
 
   // v2.2.1 起主要答案報真航向(使用者要求)。沒有算風,所以 TH = 圖上量到的 TT;
   // 磁航向還是算給你,放在下面那行,要用磁羅盤/HSI 時換算。
   var hd='<p class="big">TH <em>'+fmt3(r.first.tt)+'°</em>';
-  if(r.multi) hd+=' <span style="font-size:14px;font-weight:400">（第一段：'+r.first.from+' → '+r.first.to+'）</span>';
-  hd+='</p>';
-  hd+='<p class="note">圖上量到的真航跡 TT '+fmt3(r.first.tt)+'°，沒有算風差，所以 TH 就是這個值。'+
-      '要磁航向的話：TT ＋ VAR '+VAR+'°W ＝ MH '+fmt3(r.first.mh)+'°。</p>';
+  if(r.multi) hd+=' <span style="font-size:14px;font-weight:400">'+
+      t(lang,'a4.first',{from:ptLabel(r.first.fromPt,lang), to:ptLabel(r.first.toPt,lang)})+'</span>';
+  hd+='</p><p class="note">'+t(lang,'a4.note',{tt:fmt3(r.first.tt), var:VAR, mh:fmt3(r.first.mh)})+'</p>';
   A[3]=hd;
 
-  var al;
-  if(s.dest==='RCFN'||s.dest==='RCYU'){
-    al='<p class="big">2,500 ft 或以下</p>';
-  }else if(s.dest==='RCKW'||s.dest==='RCKH'){
-    al='<p class="big">3,000 ft 或以下</p>';
-  }else{
-    al='<p class="big">3,000–3,500 ft，進場前降至 2,500 以下</p>';
-  }
-  al+='<p class="note">'+d.note+'</p>';
-  al+='<p class="note">目的地空域 '+d.air+'。</p>';
-  if(r.ridge && s.pos.fi<0){
-    // 南端(鵝鑾鼻以西)往東北的直線切過的是恆春半島南端的丘陵,不是中央山脈,不要報大漢山
-    al+='<p class="note">直線會切過恆春半島南端的丘陵地。練習飛直線，但 MSA 要一起報出來（標高請在圖上確認）。</p>';
-  }else if(r.ridge){
-    al+='<p class="note">直線通過中央山脈南段，圖上該帶最高標高 5,538 ft（大漢山）。練習飛直線，但 MSA 要一起報出來。</p>';
-  }
+  var altKey = (s.dest==='RCFN'||s.dest==='RCYU') ? 'a5.alt2500'
+             : (s.dest==='RCKW'||s.dest==='RCKH') ? 'a5.alt3000' : 'a5.altIsland';
+  var al='<p class="big">'+t(lang,altKey)+'</p>'+
+    '<p class="note">'+Data.L(d,'note',lang)+'</p>'+
+    '<p class="note">'+t(lang,'a5.airspace',{air:d.air})+'</p>';
+  // 南端(鵝鑾鼻以西)往東北的直線切過的是恆春半島南端的丘陵,不是中央山脈,不要報大漢山
+  if(r.ridge) al+='<p class="note">'+t(lang,(s.pos.fi<0)?'a5.ridgeCape':'a5.ridge')+'</p>';
   A[4]=al;
 
   var td='<p class="big">'+r.totD.toFixed(0)+' NM · ETE '+r.totT.toFixed(0)+' min · ETA <em>'+r.eta+'</em></p>';
-  if(r.multi){
-    td+='<p class="note">分段計算，GS '+s.gs+' kt：</p>'+legTable(r);
-  }
+  if(r.multi) td+='<p class="note">'+t(lang,'a6.legs',{gs:s.gs})+'</p>'+legTable(r,lang);
   A[5]=td;
 
   // 只報「這趟要燒多少」跟「落地剩多少」。v2.2.1 拿掉「＋保留 3.3 ＝ 需求」那段算式
   // (使用者要求);保留油還是判斷夠不夠的標準,只出現在下面的註解句。
-  var fu='<p class="big">需要 <em>'+r.burn.toFixed(1)+' gal</em>　落地剩 '+r.remain.toFixed(1)+' gal</p>';
-  fu+='<p class="note">以 6.6 gal/hr × '+r.totT.toFixed(0)+' min 計。現有 '+s.fuel.toFixed(1)+' gal（'+
-      (s.lr?'Long Range':'Standard')+' tank），約可續航 '+Math.floor(s.fuel/BURN)+' 小時 '+
-      Math.round((s.fuel/BURN%1)*60)+' 分。'+
+  var fu='<p class="big">'+t(lang,'a7.need')+' <em>'+r.burn.toFixed(1)+' gal</em>'+t(lang,'a7.sep')+
+      t(lang,'a7.remain')+' '+r.remain.toFixed(1)+' gal</p>';
+  fu+='<p class="note">'+join(lang, t(lang,'a7.note',{min:r.totT.toFixed(0), fuel:s.fuel.toFixed(1),
+        tank:t(lang,s.lr?'brief.tankLR':'brief.tankStd'),
+        h:Math.floor(s.fuel/BURN), m:Math.round((s.fuel/BURN%1)*60)}),
       (r.remain>=RESERVE
-        ? '落地剩的油還在 30 分鐘保留油（'+RESERVE.toFixed(1)+' gal）之上，油量不是限制因素。'
-        : '<span style="color:var(--red);font-weight:600">落地剩的油低於 30 分鐘保留油（'+RESERVE.toFixed(1)+
-          ' gal）——這個改降場不可接受，要換一個或宣告狀況。</span>')+'</p>';
+        ? t(lang,'a7.ok',{res:RESERVE.toFixed(1)})
+        : '<span style="color:var(--red);font-weight:600">'+t(lang,'a7.low',{res:RESERVE.toFixed(1)})+'</span>'))+'</p>';
   if(!d.lit){
-    fu+='<p class="note warn">'+d.n+' 無跑道燈（圖上標示 '+d.elev+' - H'+Math.round(+d.rwy.replace(/[^0-9,]/g,'').replace(',',''))/100+'），日間限定。ETA '+r.eta+
-        ' 要和當天日沒時間對一次。</p>';
+    fu+='<p class="note warn">'+t(lang,'a7.noLight',{ad:adName(s.dest,lang), elev:d.elev,
+        rwy:Math.round(+d.rwy.replace(/[^0-9,]/g,'').replace(',',''))/100, eta:r.eta})+'</p>';
   }
   A[6]=fu;
 
-  A[7]='<p class="big">Revise and briefed</p>';
+  A[7]='<p class="big">'+t(lang,'a8.big')+'</p>';
   return A;
 }
 
-return {compute:compute, briefHTML:briefHTML, briefBlankHTML:briefBlankHTML, legTable:legTable, answers:answers, ITEMS:ITEMS, hhmm:hhmm};
+return {compute:compute, briefHTML:briefHTML, briefBlankHTML:briefBlankHTML, legTable:legTable,
+  answers:answers, items:items, ITEMS_LEN:ITEMS_LEN, hhmm:hhmm};
 });

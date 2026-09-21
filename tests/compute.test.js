@@ -52,7 +52,7 @@ describe('compute:ETA 進位跨過 60 分與跨過午夜',()=>{
 test('answers:HOLD 觸發只在考題標記 hold 時出現',()=>{
   const pos=Scenario.makePos(rng(20));
   const base={pos,dest:'RCFN',hh:10,mm:0,gs:110,alt:2500,fuel:20,lr:false};
-  const hold={...base,trig:{zh:'x',hold:true}}, turn={...base,trig:{zh:'x',hold:false}};
+  const hold={...base,trig:{id:'runway',hold:true}}, turn={...base,trig:{id:'instructor',hold:false}};
   const rHold=Compute.compute(hold), rTurn=Compute.compute(turn);
   const aHold=Compute.answers(hold,rHold), aTurn=Compute.answers(turn,rTurn);
   assert.match(aHold[2],/HOLD/);
@@ -61,9 +61,9 @@ test('answers:HOLD 觸發只在考題標記 hold 時出現',()=>{
 });
 
 test('answers:MSA 提示只在 r.ridge 為真時出現(大漢山字樣)',()=>{
-  const trig={zh:'x',hold:false};
-  const s1={pos:{lat:22.20,lon:120.90,fi:3.0,n:'x',vor:'HCN'},dest:'RCFN',hh:10,mm:0,gs:110,alt:2500,fuel:20,lr:false,trig};
-  const s2={pos:{lat:22.55,lon:120.98,fi:6.5,n:'x',vor:'GID'},dest:'RCFN',hh:10,mm:0,gs:110,alt:2500,fuel:20,lr:false,trig};
+  const trig={id:'instructor',hold:false};
+  const s1={pos:{lat:22.20,lon:120.90,fi:3.0,ref:'DR',side:'on',d:0.4,vor:'HCN'},dest:'RCFN',hh:10,mm:0,gs:110,alt:2500,fuel:20,lr:false,trig};
+  const s2={pos:{lat:22.55,lon:120.98,fi:6.5,ref:'JL',side:'on',d:0.4,vor:'GID'},dest:'RCFN',hh:10,mm:0,gs:110,alt:2500,fuel:20,lr:false,trig};
   const r1=Compute.compute(s1), r2=Compute.compute(s2);
   assert.equal(r1.ridge,true); assert.equal(r2.ridge,false);
   assert.match(Compute.answers(s1,r1)[4],/大漢山/);
@@ -71,25 +71,25 @@ test('answers:MSA 提示只在 r.ridge 為真時出現(大漢山字樣)',()=>{
 });
 
 test('answers:無跑道燈的場才會出現日間限定警語',()=>{
-  const trig={zh:'x',hold:false};
-  const litDest={pos:{lat:22.20,lon:120.90,fi:3.0,n:'x',vor:'HCN'},dest:'RCFN',hh:10,mm:0,gs:110,alt:2500,fuel:20,lr:false,trig};
+  const trig={id:'instructor',hold:false};
+  const litDest={pos:{lat:22.20,lon:120.90,fi:3.0,ref:'DR',side:'on',d:0.4,vor:'HCN'},dest:'RCFN',hh:10,mm:0,gs:110,alt:2500,fuel:20,lr:false,trig};
   const darkDest={...litDest,dest:'RCLY'};
   assert.match(Compute.answers(darkDest,Compute.compute(darkDest))[6],/日間限定/);
   assert.doesNotMatch(Compute.answers(litDest,Compute.compute(litDest))[6],/日間限定/);
 });
 
 test('answers:油量不足時,燃油答案要出現紅字警告',()=>{
-  const trig={zh:'x',hold:false};
+  const trig={id:'instructor',hold:false};
   // 故意擺一個很遠的目的地、油量給很低,逼出 fuel<req 的分支
-  const s={pos:{lat:22.05,lon:120.90,fi:1.5,n:'x',vor:'HCN'},dest:'RCKH',hh:10,mm:0,gs:90,alt:3000,fuel:1.0,lr:false,trig};
+  const s={pos:{lat:22.05,lon:120.90,fi:1.5,ref:'DR',side:'on',d:0.4,vor:'HCN'},dest:'RCKH',hh:10,mm:0,gs:90,alt:3000,fuel:1.0,lr:false,trig};
   const r=Compute.compute(s);
   assert.ok(s.fuel<r.req);
   assert.match(Compute.answers(s,r)[6],/不可接受/);
 });
 
 describe('v2.2:方向與南端起始點',()=>{
-  const trig={zh:'x',hold:false};
-  const north={pos:{lat:21.93,lon:120.76,fi:-2,n:'南灣外海',vor:'HCN',trk:80},dir:'N',
+  const trig={id:'instructor',hold:false};
+  const north={pos:{lat:21.93,lon:120.76,fi:-2,ref:'NW',side:'on',d:0.5,vor:'HCN',trk:80},dir:'N',
                plan:Scenario.DIRS.N,dest:'RCFN',hh:10,mm:0,gs:110,alt:2500,fuel:25,lr:true,trig};
   test('SITUATION 標題帶出原航線與方向',()=>{
     const h=Compute.briefHTML(north,Compute.compute(north));
@@ -101,15 +101,15 @@ describe('v2.2:方向與南端起始點',()=>{
     assert.match(A[4],/恆春半島/); assert.doesNotMatch(A[4],/大漢山/);
   });
   test('東岸往 RCFN 的 MSA 提示照舊是大漢山',()=>{
-    const s={...north,pos:{lat:22.20,lon:120.90,fi:3.0,n:'x',vor:'HCN',trk:190},dir:'S',plan:Scenario.DIRS.S,alt:3000};
+    const s={...north,pos:{lat:22.20,lon:120.90,fi:3.0,ref:'DR',side:'on',d:0.4,vor:'HCN',trk:190},dir:'S',plan:Scenario.DIRS.S,alt:3000};
     const A=Compute.answers(s,Compute.compute(s));
     assert.match(A[4],/大漢山/);
   });
 });
 
 describe('v2.2.1:油量答案只報需要與剩餘',()=>{
-  const trig={zh:'x',hold:false};
-  const base={pos:{lat:22.20,lon:120.90,fi:3.0,n:'x',vor:'HCN',trk:190},dir:'S',plan:Scenario.DIRS.S,
+  const trig={id:'instructor',hold:false};
+  const base={dir:'S',plan:Scenario.DIRS.S,pos:{lat:22.20,lon:120.90,fi:3.0,ref:'DR',side:'on',d:0.4,vor:'HCN',trk:190},dir:'S',plan:Scenario.DIRS.S,
               dest:'RCLY',hh:10,mm:0,gs:110,alt:3000,fuel:20,lr:false,trig};
   test('大字只有「需要 X gal」跟「落地剩 Y gal」,沒有保留油的算式',()=>{
     const r=Compute.compute(base), big=Compute.answers(base,r)[6].match(/<p class="big">.*?<\/p>/)[0];
@@ -131,8 +131,8 @@ describe('v2.2.1:油量答案只報需要與剩餘',()=>{
 });
 
 describe('v2.2.1:航向報真航向',()=>{
-  const trig={zh:'x',hold:false};
-  const s={pos:{lat:22.20,lon:120.90,fi:3.0,n:'x',vor:'HCN',trk:190},dir:'S',plan:Scenario.DIRS.S,
+  const trig={id:'instructor',hold:false};
+  const s={pos:{lat:22.20,lon:120.90,fi:3.0,ref:'DR',side:'on',d:0.4,vor:'HCN',trk:190},dir:'S',plan:Scenario.DIRS.S,
            dest:'RCLY',hh:10,mm:0,gs:110,alt:3000,fuel:20,lr:false,trig};
   test('第 4 格大字是 TH,值等於第一段的真航跡',()=>{
     const r=Compute.compute(s), A=Compute.answers(s,r);

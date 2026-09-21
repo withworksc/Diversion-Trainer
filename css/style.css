@@ -54,6 +54,12 @@ select,input[type=text]{
   background:var(--panel-sea);color:var(--ink);border-radius:2px;
 }
 label.inline{font-size:13px;color:var(--ink-soft);display:flex;align-items:center;gap:7px}
+/* 語言切換:控制列上的小膠囊,選中的那顆填滿。跟姿態面板的亂流切換同一個做法,
+   只是那邊在深色標題列上、這邊在淺色背景上 */
+.lang{display:flex;gap:4px}
+.lang button{font-size:12px;font-weight:600;padding:5px 11px;background:transparent;
+  color:var(--ink-soft);border:1.5px solid var(--rule-hard);border-radius:2px}
+.lang button[aria-pressed="true"]{background:var(--accent);color:#F4F0E4;border-color:var(--accent)}
 
 /* ---------- 版面:上排 .cols(SITUATION/平面圖/姿態儀)+ 下排 .sheet(八格程序) ----------
    手機(≤920)全部直排。桌面分三種排法,由 js/ui.js 的姿態開關在 .cols 加上 att-on 切換:

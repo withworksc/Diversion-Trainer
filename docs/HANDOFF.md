@@ -168,6 +168,7 @@ DA40-NG。油量規劃用 **6.6 gal/hr**、**30 分鐘保留油 = 3.3 gal**，�
 ```
 index.html          頁面骨架、選改降場、出題/顯示答案按鈕
 css/style.css        樣式（單一亮色主題，見 §6）
+js/i18n.js           介面字串 zh/en + t()（純資料，無其他依賴，見 §14）
 js/geo.js            導航數學 + 顯示用 Mercator 投影（純函式，無其他依賴）
 js/data.js            CHAIN／CAPE／VOR／AD／WPT／走廊，載入時做離岸平移（依賴 geo.js）
 js/scenario.js        出題:pickDir／makePos／pickDest／makeScenario／crossesRidge（依賴 geo+data）
@@ -277,6 +278,8 @@ ES modules 會被 CORS 擋掉，工具要能直接點兩下 `index.html` 開啟�
    `CAPE_SHARE`）。
 7. **南端往 RCFN/RCYU 的 MSA**（v2.2）：只提示「切過恆春半島南端丘陵」，沒有給標高，
    需要教官看圖確認要報多少。
+8. **地名的英文拼法**（v2.2.1a）：Jhihben、Jinlun、Dawu、Syuhai、Jioupeng、Jialeshuei、
+   Maobitou 是照航圖的通用拼音風格補的，沒有在圖上逐個確認。請教官或使用者對一次。
 
 ---
 
@@ -313,6 +316,8 @@ npm start         # 本機預覽 http://localhost:8766(注意:會被瀏覽器快
 - `scenario.js`：`makePos` 的範圍與 VOR 選台、南端比例與位置名稱、南下/北上的原航向、
   `pickDest` 的加權分布（2 萬題）、`crossesRidge` 的每一種規則（含南端）、`makeScenario`
   的欄位範圍與起始高度（2 萬題）、隨機不抽回航場、指定回航場時方向固定、狀況文字代換。
+- `i18n.js`：兩種語言的 key 一致、變數一致、英文不得照抄中文、`t()` 的退路、資料的英文
+  欄位齊全，以及「2000 題的英文輸出不得出現中日韓文字」。
 - `compute.js`：油量算式、ETA 進位（跨 60 分、跨午夜）、`r.multi` 恆為 false、HOLD/TURN
   切換、MSA 提示、日間限定警語、油量不足警告。
 - `attitude.js`：搖桿死區與 expo 曲線、兩軸的方向/夾限/回正不過衝(臨界阻尼)、anti-windup、固定種子
@@ -514,9 +519,54 @@ Branch: main / (root)
 
 ---
 
-## 14. Milestone:介面中英文切換（規劃中，還沒動工）
+## 14. 介面中英文切換（v2.2.1a 初版）
 
-分支 `feature/v2.2.1a-i18n`。這一節是**目標與範圍**，不是已完成的功能。
+分支 `feature/v2.2.1a-i18n`。**預設中文**，控制列上有「中文 / EN」切換，選過記在
+`localStorage`（`c8.lang`，讀寫失敗就用預設）。
+
+### 14.1 切換怎麼運作
+
+切換是**立刻重畫**，不重新出題：
+
+- 靜態文字（頁首、按鈕、標題、提示、頁尾）掛 `data-i18n="key"`，`js/ui.js` 的
+  `applyStatic()` 照 key 重填 `textContent`；改降場選單的機場名掛 `data-ad="ICAO"`，
+  名字從 `js/data.js` 取。
+- 題目與答案是**每次畫面都重組**的：出題器只存結構，不存字串（見 14.2），所以同一個
+  情境用另一個語言重算就好，已經顯示的答案也會跟著換。
+
+### 14.2 分工（沿用「純函式不碰 DOM」那條線）
+
+| 檔案 | 放什麼 |
+|---|---|
+| `js/i18n.js` | 介面字串字典 zh/en + `t(lang,key,vars)`。整句一個 key，用 `{變數}` 代換 |
+| `js/data.js` | 地名、機場名、機場備註、FIS 的英文（`en`／`nEn`／`noteEn`／`fisEn`）+ `L()`／`ptName()` |
+| `js/scenario.js` | 位置只存 `{ref, side, d}`、狀況只存 `{id, hold}`；`posName(pos,lang)`、`trigText(s,lang)` 才組字 |
+| `js/compute.js` | `briefHTML(s,r,lang)`／`answers(s,r,lang)`／`items(lang)`／`legTable(r,lang)`，沒給 lang 就是中文 |
+| `js/ui.js` | 讀寫語言設定、切換後重畫、把靜態文字填進 DOM |
+
+**不要把句子拆成片段再拼**——英文拼出來會很怪。整句一個 key，變數代換。兩句接在一起時
+中文不用空格、英文要（`compute.js` 的 `join()`）；分隔符號也分語言（`a7.sep`）。
+
+### 14.3 翻譯的界線
+
+航空術語、機場代碼、G1000 上的字（TH、DME、BKN008、Long Range tank…）兩種語言都維持原樣。
+位置描述（「達仁北方 3 NM 外海」／`3 NM north of Daren, offshore`）只是輔助說明——學員判斷
+位置還是看 radial/DME（使用者確認過），所以英文寫法直白就好。
+
+地名拼法照航圖（英文版航圖）：**Daren、Taimali、Gangzihbi、Eluanbi、Nanwan、Fongnian、
+Ludao、Lanyu、Hengchun** 是圖上直接讀到的；**Jhihben、Jinlun、Dawu、Syuhai、Jioupeng、
+Jialeshuei、Maobitou** 是照同一套通用拼音補的，沒有在圖上逐個確認（見 §7 未決問題 9）。
+
+### 14.4 測試
+
+`tests/i18n.test.js`：兩種語言的 key 完全一致、同一個 key 的變數一致、英文不得照抄中文、
+`t()` 的退路（不認得的語言退回中文、不認得的 key 回傳 key 本身）、資料的英文欄位齊全，
+以及最重要的一條——**2000 題的 SITUATION 與八格答案，英文版不得出現任何中日韓文字**，
+漏翻一句就會被抓到。版面：在 1200 與 1600 兩個寬度、兩種語言各出 12 題並顯示答案，
+`.cols` 高度都沒有變動（英文比較長，但撐不破橫帶版面）。
+
+
+### 14.5 原本的規劃（保留，對照用）
 
 ### 14.1 目標
 
