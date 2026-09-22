@@ -95,7 +95,7 @@ test('makeScenario:欄位範圍(距台、地速、油量、高度)都符合 docs
     assert.ok(s.mm>=0&&s.mm<60,`mm=${s.mm}`);
     assert.equal(s.gs%5,0);
     assert.ok(s.gs>=85&&s.gs<=160,`gs=${s.gs}`);
-    assert.ok(Data.AD[s.dest],`未知改降場 ${s.dest}`);
+    assert.ok(Data.DEST[s.dest],`未知改降場 ${s.dest}`);
     assert.equal(s.alt,s.dir==='N'?2500:3000,`${s.dir} 的高度 ${s.alt}`);
     assert.notEqual(s.dest,s.plan.to,'不會改降到原目的地');
     if(s.lr) assert.ok(s.fuel>=25.5&&s.fuel<=32,`long range fuel=${s.fuel}`);
@@ -150,6 +150,35 @@ describe('v2.2:南下/北上、回航場不進隨機',()=>{
   });
   test('不認得的改降場代碼當成隨機,不會壞掉',()=>{
     const s=Scenario.makeScenario('XXXX',rng(25));
-    assert.ok(Data.AD[s.dest]); assert.notEqual(s.dest,'XXXX');
+    assert.ok(Data.DEST[s.dest]); assert.notEqual(s.dest,'XXXX');
+  });
+});
+
+describe('v2.2.2:改降到報告點(池上、成功、長虹橋)',()=>{
+  const PTS=['CHISHANG','CHENGGONG','CHANGHONG'];
+  test('三個報告點都在隨機池裡,加起來大約四分之一的題目(2 萬題,容差 ±3 個百分點)',()=>{
+    const r=rng(31),N=20000;let n=0;
+    for(let i=0;i<N;i++) if(PTS.includes(Scenario.makeScenario('auto',r).dest)) n++;
+    const tot=Scenario.WEIGHT.reduce((s,[,w])=>s+w,0), exp=30/tot*100, pct=n/N*100;
+    assert.ok(Math.abs(pct-exp)<3,`報告點 ${pct.toFixed(1)}%,預期約 ${exp.toFixed(1)}%`);
+  });
+  test('指定報告點:南下北上都會出,改降目的地就是它',()=>{
+    const r=rng(32);
+    for(const k of PTS){
+      const dirs=new Set();
+      for(let i=0;i<200;i++){ const s=Scenario.makeScenario(k,r); assert.equal(s.dest,k); dirs.add(s.dir); }
+      assert.deepEqual([...dirs].sort(),['N','S'],`${k} 應該兩個方向都有`);
+    }
+  });
+  test('報告點從 C8 任何位置直飛都要提示 MSA(會碰到海岸山脈或都蘭一帶)',()=>{
+    for(const k of PTS) for(const fi of [-2.5,-1,0.5,1.2,3,4.5,6,8])
+      assert.equal(Scenario.crossesRidge({fi},k),true,`${k} @ fi=${fi}`);
+  });
+  test('座標釘在航圖量到的位置(改了要重新量)',()=>{
+    const want={CHISHANG:[23.121,121.219],CHENGGONG:[23.102,121.387],CHANGHONG:[23.465,121.510]};
+    for(const [k,[la,lo]] of Object.entries(want)){
+      const p=Data.DEST[k];
+      assert.equal(p.kind,'pt'); assert.equal(p.lat,la); assert.equal(p.lon,lo);
+    }
   });
 });

@@ -23,7 +23,7 @@ test('compute:距離與航向跟 Geo 直接算的結果一致(不是另外抄一
   const r=rng(11);
   for(let i=0;i<2000;i++){
     const s=Scenario.makeScenario('auto',r), res=Compute.compute(s);
-    const d=Geo.dist(s.pos,Data.AD[s.dest]), tt=Geo.trueBrg(s.pos,Data.AD[s.dest]);
+    const d=Geo.dist(s.pos,Data.DEST[s.dest]), tt=Geo.trueBrg(s.pos,Data.DEST[s.dest]);
     assert.ok(Math.abs(res.dirD-d)<1e-9);
     assert.ok(Math.abs(res.dirTT-tt)<1e-9);
     assert.ok(Math.abs(res.totD-d)<1e-9); // buildRoute 目前永遠是兩點直線
@@ -155,5 +155,32 @@ describe('v2.2.1:航向報真航向',()=>{
     const t=Compute.legTable(r);
     assert.match(t,/<th>TH<\/th>/);
     assert.ok(t.includes(Geo.fmt3(r.legs[0].tt)+'°'));
+  });
+});
+
+describe('v2.2.2:報告點的答案',()=>{
+  const trig={id:'instructor',hold:false};
+  const mk=dest=>({pos:{lat:22.60,lon:121.03,fi:7.0,ref:'TML',side:'on',d:0.5,vor:'GID',trk:20},dir:'N',
+    plan:Scenario.DIRS.N,dest,hh:10,mm:0,gs:110,alt:2500,fuel:22,lr:false,trig});
+  for(const k of ['CHISHANG','CHENGGONG','CHANGHONG']){
+    test(`${k}:高度講走廊、沒有機場空域與跑道燈、油量說「到達時剩」`,()=>{
+      const s=mk(k), r=Compute.compute(s), A=Compute.answers(s,r,'zh');
+      assert.match(A[4],/2,500 ft 或以下，沿 C(6|12) 走廊/);
+      assert.doesNotMatch(A[4],/目的地空域/);
+      assert.match(A[4],/MSA/);
+      assert.match(A[6],/到達時剩/); assert.doesNotMatch(A[6],/落地剩|無跑道燈/);
+    });
+    test(`${k}:英文版沒有中文,也用 on arrival`,()=>{
+      const s=mk(k), r=Compute.compute(s);
+      const out=[Compute.briefHTML(s,r,'en'),...Compute.answers(s,r,'en')].join(' ');
+      assert.doesNotMatch(out,/[一-鿿]/);
+      assert.match(out,/on arrival/); assert.match(out,/reporting point/);
+    });
+  }
+  test('長虹橋的地形提示是 5,520 ft,池上、成功是 3,906 ft',()=>{
+    const A=k=>Compute.answers(mk(k),Compute.compute(mk(k)),'zh')[4];
+    assert.match(A('CHANGHONG'),/5,520 ft/);
+    assert.match(A('CHISHANG'),/3,906 ft/);
+    assert.match(A('CHENGGONG'),/3,906 ft/);
   });
 });

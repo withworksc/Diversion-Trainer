@@ -42,7 +42,7 @@ function makeProj(need,W,H,pad,minSpan){
 function mapSVG(s,r){
   var W=376,H=436,pad=22;
   var need=r.pts.slice();
-  need.push(s.pos,Data.AD[s.dest]);
+  need.push(s.pos,Data.DEST[s.dest]);
   var P=makeProj(need,W,H,pad,0.72);
   var g='',i,p;
 
@@ -52,7 +52,7 @@ function mapSVG(s,r){
      '%;height:'+((br[1]-tl[1])/H*100).toFixed(4)+'%">';
   g+='<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="#F4F0E4" opacity="0.22"/>';
 
-  var a=P(s.pos.lat,s.pos.lon), b=P(Data.AD[s.dest].lat,Data.AD[s.dest].lon);
+  var a=P(s.pos.lat,s.pos.lon), b=P(Data.DEST[s.dest].lat,Data.DEST[s.dest].lon);
 
   /* 航路（直線）*/
   var d='';
@@ -65,7 +65,7 @@ function mapSVG(s,r){
   }
 
   /* 改降場 */
-  p=P(Data.AD[s.dest].lat,Data.AD[s.dest].lon);
+  p=P(Data.DEST[s.dest].lat,Data.DEST[s.dest].lon);
   g+='<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="8.5" fill="none" stroke="#C41E5A" stroke-width="2.4"/>';
 
   /* 作用中的 VOR */

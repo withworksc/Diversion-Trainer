@@ -13,7 +13,7 @@
 })(this, function(Geo, Data, I18n){
 'use strict';
 
-var CHAIN = Data.CHAIN, CAPE = Data.CAPE, AD = Data.AD;
+var CHAIN = Data.CHAIN, CAPE = Data.CAPE, AD = Data.AD, DEST = Data.DEST;
 
 /* ---------- 方向(v2.2 起南下、北上都有) ----------
    南下是原本的 RCFN → RCKW;北上是回程 RCKW → RCFN。alt 是出題當下的高度:C8 走廊
@@ -88,7 +88,7 @@ function makePos(rnd,dir){
 }
 
 function buildRoute(pos,destKey){
-  return [pos, AD[destKey]];
+  return [pos, DEST[destKey]];
 }
 
 /* 直線是否跨過中央山脈（只用來提示 MSA，不改航路 —— 出題器故意只飛直線，
@@ -98,6 +98,9 @@ function buildRoute(pos,destKey){
    (不是中央山脈,compute.js 的提示文字也不同);往 RCKH 走西岸外海,不過山。 */
 function crossesRidge(pos,destKey){
   var fi=pos.fi;
+  // 報告點(池上、成功、長虹橋)從 C8 任何位置直飛都會碰到海岸山脈或都蘭一帶的地形
+  // (在航圖上畫線看過),一律提示;地形細節在 data.js 各點的 ridge 欄位
+  if(Data.isPoint(destKey)) return true;
   if(fi<0) return destKey==='RCFN'||destKey==='RCYU';
   if(destKey==='RCGI'||destKey==='RCLY') return false;
   if(destKey==='RCKH') return true;
@@ -109,7 +112,10 @@ function crossesRidge(pos,destKey){
 /* ---------- 題目產生 ---------- */
 // 隨機只抽這四個。回航(南下回 RCFN、北上回 RCKW)實際上很少考,不放進隨機(v2.2,
 // 使用者:通常不太會轉降豐年);選單還是可以指定,指定了方向就跟著定(見 pickDir)。
-var WEIGHT=[['RCKH',25],['RCLY',25],['RCGI',20],['RCYU',10]];
+// v2.2.2 加上三個報告點(使用者:會有機會改降到池上、成功、長虹橋),各 10,
+// 合起來大約四分之一的題目。比例是暫定的。
+var WEIGHT=[['RCKH',25],['RCLY',25],['RCGI',20],['RCYU',10],
+            ['CHISHANG',10],['CHENGGONG',10],['CHANGHONG',10]];
 
 // force：'auto' 或指定 ICAO 代碼；rnd：可注入固定種子的亂數
 function pickDest(force,rnd){
@@ -144,7 +150,7 @@ function pick(a,rng){return a[Math.floor(rng()*a.length)]}
 // force：強制改降場（'auto' 或 ICAO 代碼）；rnd：可注入固定種子的亂數
 function makeScenario(force,rnd){
   rnd = rnd || Math.random;
-  if(force && force!=='auto' && !AD[force]) force='auto';   // 不認得的代碼當成隨機
+  if(force && force!=='auto' && !DEST[force]) force='auto';   // 不認得的代碼當成隨機
   var dir=pickDir(force,rnd), plan=DIRS[dir];
   var pos=makePos(rnd,dir);
   var destKey=pickDest(force,rnd);

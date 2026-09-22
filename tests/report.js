@@ -12,7 +12,7 @@ console.log('| # | 方向 | 位置 | 改降場 | 距離/ETE/ETA | 油量需求/�
 console.log('|---|---|---|---|---|---|---|---|');
 for(let n=1;n<=count;n++){
   const s=Scenario.makeScenario('auto',rnd), r=Compute.compute(s);
-  console.log(`| ${n} | ${Scenario.DIRS[s.dir]===s.plan?(s.dir==='N'?'北上':'南下'):''} | ${Scenario.posName(s.pos,'zh')}(R-${r.radial}/${r.dme} ${r.vor.n}) | ${Data.AD[s.dest].n} | `+
+  console.log(`| ${n} | ${Scenario.DIRS[s.dir]===s.plan?(s.dir==='N'?'北上':'南下'):''} | ${Scenario.posName(s.pos,'zh')}(R-${r.radial}/${r.dme} ${r.vor.n}) | ${Data.DEST[s.dest].n} | `+
     `${r.totD.toFixed(0)} NM / ${r.totT.toFixed(0)} min / ${r.eta} | `+
     `${r.req.toFixed(1)} gal 需求,剩 ${r.remain.toFixed(1)} gal${s.fuel<r.req?' ⚠️不足':''} | `+
     `${r.ridge?'跨山脊':'—'} | ${s.trig.hold?'HOLD candidate':'TURN'} |`);

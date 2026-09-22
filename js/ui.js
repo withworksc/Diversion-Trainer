@@ -22,7 +22,7 @@ function applyStatic(){
   var els=document.querySelectorAll('[data-i18n]'),i;
   for(i=0;i<els.length;i++) els[i].textContent=t(els[i].getAttribute('data-i18n'));
   var ads=document.querySelectorAll('[data-ad]');
-  for(i=0;i<ads.length;i++) ads[i].textContent=Data.L(Data.AD[ads[i].getAttribute('data-ad')],'n',lang);
+  for(i=0;i<ads.length;i++) ads[i].textContent=Data.L(Data.DEST[ads[i].getAttribute('data-ad')],'n',lang);
   var bs=langPick.querySelectorAll('button[data-lang]');
   for(i=0;i<bs.length;i++) bs[i].setAttribute('aria-pressed', bs[i].getAttribute('data-lang')===lang);
 }

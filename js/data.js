@@ -76,6 +76,44 @@ var AD = {
         noteEn:'North along the east coast (corridor C12). It is a long leg - fuel and daylight are the limits here, not the heading.', fisEn:'Hualien Approach 119.5'}
 };
 
+/* ---------- 目視報告點當改降目的地(v2.2.2)----------
+   考官也會叫你改去報告點,不一定是機場:池上、成功、長虹橋。座標是在航圖底圖上量三角形
+   符號的中心,再畫回去確認落在符號上(誤差 < 0.3 NM)。kind:'pt' 讓答案模型知道這不是機場
+   (沒有跑道、燈光、機場空域)。
+   高度:沿用北上 C8 的「2,500 ft 以下」並留在 TAITUNG 限航區(底 3,500 ft)下方——這是
+   推的,沒有使用者確認過,見 docs/HANDOFF.md §7。
+   ridge:直飛一定會碰到的地形(畫線在航圖上看過,三個點從 C8 任何位置直飛都會過),
+   答案用它提示 MSA 並指出實際該走的走廊。 */
+var PTS = {
+  CHISHANG:{kind:'pt', n:'池上（報告點）', nEn:'Chishang (reporting point)', lat:23.121, lon:121.219,
+    corridor:'C12',
+    note:'花東縱谷裡的報告點，C12 走廊（鹿野 → 池上 → 玉里）。東邊是 TAITUNG 限航區（3,500–9,500 ft），高度留在它的底之下。',
+    noteEn:'A reporting point in the East Rift Valley on corridor C12 (Luye - Chishang - Yuli). The TAITUNG restricted area (3,500-9,500 ft) lies to the east; stay below its base.',
+    ridge:'直線經台東、鹿野進縱谷，途中有 3,906 ft 的標高點（都蘭山一帶）。實際要沿 C12 走廊飛縱谷。練習飛直線，但 MSA 要一起報出來。',
+    ridgeEn:'The direct track passes Taitung and Luye into the valley, near a 3,906 ft spot height (around Dulan). In practice you would follow corridor C12 up the valley. Fly the straight line for practice, but state the MSA as well.'},
+  CHENGGONG:{kind:'pt', n:'成功（報告點）', nEn:'Chenggong (reporting point)', lat:23.102, lon:121.387,
+    corridor:'C6',
+    note:'東海岸的報告點，C6 走廊（東河 → 成功 → 長虹橋）。西邊是 TAITUNG 限航區（3,500–9,500 ft），高度留在它的底之下。',
+    noteEn:'A reporting point on the east coast, corridor C6 (Donghe - Chenggong - Changhong Bridge). The TAITUNG restricted area (3,500-9,500 ft) lies to the west; stay below its base.',
+    ridge:'直線切過海岸山脈南端（都蘭一帶，圖上標高 3,906 ft）。實際要沿 C6 海岸走廊飛。練習飛直線，但 MSA 要一起報出來。',
+    ridgeEn:'The direct track cuts across the southern end of the Coastal Range (around Dulan, 3,906 ft charted). In practice you would follow the coastal corridor C6. Fly the straight line for practice, but state the MSA as well.'},
+  CHANGHONG:{kind:'pt', n:'長虹橋（報告點）', nEn:'Changhong Bridge (reporting point)', lat:23.465, lon:121.510,
+    corridor:'C6',
+    note:'秀姑巒溪出海口的報告點，C6 海岸走廊。距離長，油量是主要考量。',
+    noteEn:'A reporting point at the mouth of the Xiuguluan River on the coastal corridor C6. It is a long leg, so fuel is the main consideration.',
+    ridge:'直線橫越海岸山脈，圖上最高標高 5,520 ft。實際要沿 C6 海岸走廊飛。練習飛直線，但 MSA 要一起報出來。',
+    ridgeEn:'The direct track crosses the Coastal Range, with spot heights up to 5,520 ft. In practice you would follow the coastal corridor C6. Fly the straight line for practice, but state the MSA as well.'}
+};
+
+// 所有可以當改降目的地的東西:機場(kind 沒寫 = 機場)+ 報告點。出題、答案、地圖都查這張
+var DEST = {};
+(function(){
+  var k;
+  for(k in AD)  if(Object.prototype.hasOwnProperty.call(AD,k))  DEST[k]=AD[k];
+  for(k in PTS) if(Object.prototype.hasOwnProperty.call(PTS,k)) DEST[k]=PTS[k];
+})();
+function isPoint(key){ return !!(DEST[key] && DEST[key].kind==='pt'); }
+
 var CORRIDORS = {
   C8:  '恆春 ↔ 港仔鼻 ↔ 大武 ↔ 太麻里 ↔ RCFN（本題的 XC 航路）',
   C9:  '恆春 ↔ 楓港 ↔ 枋寮 ↔ 東港 ↔ RCKH（西岸）',
@@ -115,5 +153,5 @@ function L(obj,field,lang){
 function ptName(pt,lang){ return (lang==='en' && pt && pt.en) ? pt.en : (pt?pt.n:''); }
 
 return {VAR:VAR, BURN:BURN, RESERVE:RESERVE, OFFSHORE:OFFSHORE, L:L, ptName:ptName,
-  CHAIN:CHAIN, CAPE:CAPE, WPT:WPT, VOR:VOR, AD:AD, CORRIDORS:CORRIDORS};
+  CHAIN:CHAIN, CAPE:CAPE, WPT:WPT, VOR:VOR, AD:AD, PTS:PTS, DEST:DEST, isPoint:isPoint, CORRIDORS:CORRIDORS};
 });

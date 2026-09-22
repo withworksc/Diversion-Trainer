@@ -14,7 +14,8 @@
 })(this, function(Geo, Data, Scenario, I18n){
 'use strict';
 
-var VAR=Data.VAR, BURN=Data.BURN, RESERVE=Data.RESERVE, AD=Data.AD;
+// AD 在這裡指「改降目的地」:機場 + 報告點(v2.2.2),用 Data.DEST
+var VAR=Data.VAR, BURN=Data.BURN, RESERVE=Data.RESERVE, AD=Data.DEST;
 // 所有畫面字串都經過 t():lang 是 'zh'(預設)或 'en',字串本體在 js/i18n.js
 function t(lang,key,vars){ return I18n.t(lang,key,vars); }
 function adName(key,lang){ return Data.L(AD[key],'n',lang); }
@@ -143,13 +144,18 @@ function answers(s,r,lang){
   hd+='</p><p class="note">'+t(lang,'a4.note',{tt:fmt3(r.first.tt), var:VAR, mh:fmt3(r.first.mh)})+'</p>';
   A[3]=hd;
 
-  var altKey = (s.dest==='RCFN'||s.dest==='RCYU') ? 'a5.alt2500'
+  var pt = (d.kind==='pt');
+  var altKey = pt ? 'a5.altPoint'
+             : (s.dest==='RCFN'||s.dest==='RCYU') ? 'a5.alt2500'
              : (s.dest==='RCKW'||s.dest==='RCKH') ? 'a5.alt3000' : 'a5.altIsland';
-  var al='<p class="big">'+t(lang,altKey)+'</p>'+
-    '<p class="note">'+Data.L(d,'note',lang)+'</p>'+
-    '<p class="note">'+t(lang,'a5.airspace',{air:d.air})+'</p>';
-  // 南端(鵝鑾鼻以西)往東北的直線切過的是恆春半島南端的丘陵,不是中央山脈,不要報大漢山
-  if(r.ridge) al+='<p class="note">'+t(lang,(s.pos.fi<0)?'a5.ridgeCape':'a5.ridge')+'</p>';
+  var al='<p class="big">'+t(lang,altKey,{corr:d.corridor})+'</p>'+
+    '<p class="note">'+Data.L(d,'note',lang)+'</p>';
+  // 報告點沒有機場空域可報,改成提示走廊
+  if(!pt) al+='<p class="note">'+t(lang,'a5.airspace',{air:d.air})+'</p>';
+  // 報告點的地形各不相同,寫在資料裡;南端(鵝鑾鼻以西)往東北切過的是恆春半島南端的丘陵,
+  // 不是中央山脈,不要報大漢山
+  if(r.ridge) al+='<p class="note">'+(pt ? Data.L(d,'ridge',lang)
+                                         : t(lang,(s.pos.fi<0)?'a5.ridgeCape':'a5.ridge'))+'</p>';
   A[4]=al;
 
   var td='<p class="big">'+r.totD.toFixed(0)+' NM · ETE '+r.totT.toFixed(0)+' min · ETA <em>'+r.eta+'</em></p>';
@@ -158,15 +164,16 @@ function answers(s,r,lang){
 
   // 只報「這趟要燒多少」跟「落地剩多少」。v2.2.1 拿掉「＋保留 3.3 ＝ 需求」那段算式
   // (使用者要求);保留油還是判斷夠不夠的標準,只出現在下面的註解句。
+  // 報告點不會落地:「落地剩」改成「到達時剩」
   var fu='<p class="big">'+t(lang,'a7.need')+' <em>'+r.burn.toFixed(1)+' gal</em>'+t(lang,'a7.sep')+
-      t(lang,'a7.remain')+' '+r.remain.toFixed(1)+' gal</p>';
+      t(lang,pt?'a7.remainArr':'a7.remain')+' '+r.remain.toFixed(1)+' gal</p>';
   fu+='<p class="note">'+join(lang, t(lang,'a7.note',{min:r.totT.toFixed(0), fuel:s.fuel.toFixed(1),
         tank:t(lang,s.lr?'brief.tankLR':'brief.tankStd'),
         h:Math.floor(s.fuel/BURN), m:Math.round((s.fuel/BURN%1)*60)}),
       (r.remain>=RESERVE
-        ? t(lang,'a7.ok',{res:RESERVE.toFixed(1)})
-        : '<span style="color:var(--red);font-weight:600">'+t(lang,'a7.low',{res:RESERVE.toFixed(1)})+'</span>'))+'</p>';
-  if(!d.lit){
+        ? t(lang,pt?'a7.okArr':'a7.ok',{res:RESERVE.toFixed(1)})
+        : '<span style="color:var(--red);font-weight:600">'+t(lang,pt?'a7.lowArr':'a7.low',{res:RESERVE.toFixed(1)})+'</span>'))+'</p>';
+  if(!pt && !d.lit){
     fu+='<p class="note warn">'+t(lang,'a7.noLight',{ad:adName(s.dest,lang), elev:d.elev,
         rwy:Math.round(+d.rwy.replace(/[^0-9,]/g,'').replace(',',''))/100, eta:r.eta})+'</p>';
   }
