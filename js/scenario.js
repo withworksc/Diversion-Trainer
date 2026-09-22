@@ -110,7 +110,7 @@ function buildRoute(pos,destKey){
 
 // 「另一組答案」的航路(v2.2.2a):改降高雄時,除了直飛(跨中央山脈)之外,再給一條先回恆春、
 // 恆春以後直線切到高雄的航路(使用者:高雄西部可以直接切直線)。這段直線會經過外海的
-// RCR34 限航區(SFC–14,000 ft),答案文字有提醒,見 docs/HANDOFF.md。其他目的地回傳 null。
+// RCR34 限航區(SFC–14,000 ft),使用者決定答案不提,見 docs/HANDOFF.md。其他目的地回傳 null。
 function altRoute(pos,destKey){
   if(destKey!=='RCKH') return null;
   return [pos, Data.HC, AD.RCKH];

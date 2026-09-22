@@ -226,14 +226,14 @@ describe('v2.2.2a:東部改降高雄的另一組答案(先到恆春,再直飛高
     const s=kh[0], r=Compute.compute(s), A=Compute.answers(s,r,'zh');
     for(const i of [2,3,4,5,6]) assert.match(A[i],/class="alt"/,`第 ${i+1} 格沒有另一組`);
     assert.match(A[3],new RegExp('TH <em>'+Geo.fmt3(r.alt.first.tt)+'°'));
-    assert.match(A[4],/RCR34/,'直線經過 RCR34,答案要提醒');
+    assert.match(A[4],/先回恆春，再直線切到高雄/);
     assert.match(A[5],/恆春 → RCKH 高雄/);
     const s2=other[0], A2=Compute.answers(s2,Compute.compute(s2),'zh');
     assert.doesNotMatch(A2.join(''),/class="alt"/);
   });
   test('英文版的另一組:via Hengchun、報告點用航圖拼法、沒有中文',()=>{
     const s=kh[1], r=Compute.compute(s), out=Compute.answers(s,r,'en').join(' ');
-    assert.match(out,/direct to Kaohsiung/); assert.match(out,/Hengchun → RCKH Kaohsiung/); assert.match(out,/RCR34/);
+    assert.match(out,/direct to Kaohsiung/); assert.match(out,/Hengchun → RCKH Kaohsiung/);
     assert.doesNotMatch(out,/[一-鿿]/);
   });
   test('地圖:改降高雄時多一條橘色航路與圖例,其他目的地沒有;圖例跟著語言',()=>{
