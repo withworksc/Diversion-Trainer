@@ -151,6 +151,12 @@ label.inline{font-size:13px;color:var(--ink-soft);display:flex;align-items:cente
 .brief dd.nil{color:var(--rule-hard);font-weight:400}
 .brief .dest dd{color:var(--hot);font-size:20px}
 .brief .dest dd.nil{color:var(--rule-hard)}
+/* 答案格裡的「另一組答案」(v2.2.2a,目前只有東部改降高雄經恆春):橘色邊線跟地圖上的
+   橘色航路對應,讓人一眼知道這段講的是哪一條線 */
+.ans .alt{margin-top:10px;padding:6px 0 0 9px;border-left:3px solid #E07B00;border-radius:0}
+.ans .alt>b{display:block;font-size:11.5px;color:#B26A00;font-weight:700;margin-bottom:3px}
+.ans .alt .alt-big{margin:0 0 3px;font-size:15px;font-weight:700;color:var(--ink)}
+.ans .alt .alt-big em{font-style:normal;color:#B26A00}
 .brief h2 .leg{font-weight:400;letter-spacing:.02em;margin-left:8px;opacity:.9}
 .brief .sit{padding:11px 12px;background:#FDF7E3;border-top:2px solid var(--accent);font-size:14px;line-height:1.55}
 .brief .sit b{display:block;font-size:11.5px;color:var(--ink-soft);font-weight:600;margin-bottom:3px}

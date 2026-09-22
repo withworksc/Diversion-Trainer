@@ -108,6 +108,13 @@ function buildRoute(pos,destKey){
   return [pos, DEST[destKey]];
 }
 
+// 「另一組答案」的航路(v2.2.2a):改降高雄時,除了直飛(跨中央山脈)之外,再給一條先回恆春、
+// 再沿 C9 西岸到高雄的航路。其他目的地沒有另一組,回傳 null。
+function altRoute(pos,destKey){
+  if(destKey!=='RCKH') return null;
+  return [pos, Data.HC].concat(Data.C9).concat([AD.RCKH]);
+}
+
 /* 直線是否跨過中央山脈（只用來提示 MSA，不改航路 —— 出題器故意只飛直線，
    見 docs/HANDOFF.md §3.2）。這是粗略規則，只涵蓋 C8 段本身會遇到的幾種情形；
    RCYU 目的地在某些 fi 的直線實際上仍會切到海岸山脈邊緣，見 §6 未決問題。
@@ -184,6 +191,6 @@ function makeScenario(force,rnd){
 
 return {WEIGHT:WEIGHT, TRIGGERS:TRIGGERS, DIRS:DIRS, NORTH_SHARE:NORTH_SHARE, CAPE_SHARE:CAPE_SHARE,
   GZB:GZB, GZB_SHARE:GZB_SHARE,
-  makePos:makePos, posName:posName, trigText:trigText, buildRoute:buildRoute,
+  makePos:makePos, posName:posName, trigText:trigText, buildRoute:buildRoute, altRoute:altRoute,
   crossesRidge:crossesRidge, pickDir:pickDir, pickDest:pickDest, makeScenario:makeScenario};
 });

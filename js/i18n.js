@@ -87,6 +87,14 @@ zh: {
 
   'leg.leg':'航段', 'leg.total':'合計',
 
+  'alt.title':'另一組答案：經恆春，走 C9 西岸（地圖上的橘線）',
+  'alt.turn':'走經恆春這組的話，初始概略轉向 {hdg}°。',
+  'alt.hdg':'第一段：{from} → {to}（MH {mh}°）。',
+  'alt.alt':'先回恆春，再沿 C9 西岸走廊（恆春 → 楓港 → 枋寮 → 東港 → 高雄），不跨中央山脈。C9 貼著外海 RCR34 限航區（SFC–14,000 ft）的東緣，要靠岸飛——恆春直線到高雄會穿過 RCR34。',
+  'map.aria':'本機位置與改降航路',
+  'map.direct':'直飛',
+  'map.alt':'經恆春（C9）',
+
   'trig.wx':'{ad} 場面 METAR 報 BKN008，低於目視最低條件。',
   'trig.instructor':'考官指示：立即改降。',
   'trig.coast':'前方沿岸雲底降低，繼續{dir}無法維持 VFR。',
@@ -173,6 +181,14 @@ en: {
   'a8.big':'Revise and briefed',
 
   'leg.leg':'Leg', 'leg.total':'Total',
+
+  'alt.title':'Alternative: via Hengchun and the west-coast corridor C9 (orange line on the map)',
+  'alt.turn':'For the via-Hengchun option, initial rough turn {hdg}°.',
+  'alt.hdg':'First leg: {from} → {to} (MH {mh}°).',
+  'alt.alt':'Back to Hengchun first, then along the west-coast corridor C9 (Hengchun - Fonggang - Fangliao Bridge - Donggang - Kaohsiung), which avoids the Central Range. C9 runs along the eastern edge of the offshore RCR34 restricted area (SFC-14,000 ft), so keep close to the coast — a straight line from Hengchun to Kaohsiung goes through RCR34.',
+  'map.aria':'Aircraft position and diversion route',
+  'map.direct':'Direct',
+  'map.alt':'Via Hengchun (C9)',
 
   'trig.wx':'{ad} is reporting BKN008, below VFR minima.',
   'trig.instructor':'Instructor directs an immediate diversion.',

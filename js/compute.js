@@ -22,21 +22,20 @@ function adName(key,lang){ return Data.L(AD[key],'n',lang); }
 // 兩句接在一起時,中文不用空格,英文要
 function join(lang,a,b){ return a+((lang==='en')?' ':'')+b; }
 // 航段端點的名字:本機位置用位置描述,其他是機場
-function ptLabel(pt,lang){ return (pt.k==='XC') ? Scenario.posName(pt,lang) : Data.L(pt,'n',lang); }
+function ptLabel(pt,lang){
+  if(pt.k==='XC') return Scenario.posName(pt,lang);
+  return pt.en ? Data.ptName(pt,lang) : Data.L(pt,'n',lang);   // 報告點用 en,機場用 nEn
+}
+// 「另一組答案」的區塊:每一格答案底下加一段,標題講清楚是哪一條(地圖上的橘線)
+function altBlock(lang,html){ return '<div class="alt"><b>'+t(lang,'alt.title')+'</b>'+html+'</div>'; }
 function mag(t){return Geo.mag(t,VAR)}
 function fmt3(x){return Geo.fmt3(x)}
 
 function hhmm(h,m){h=(h+Math.floor(m/60))%24;m=((m%60)+60)%60;return ('0'+h).slice(-2)+('0'+m).slice(-2)}
 
 /* ---------- 數字計算 ---------- */
-function compute(s){
-  var v=Data.VOR[s.pos.vor];
-  var r={};
-  r.radial=fmt3(mag(Geo.trueBrg(v,s.pos)));
-  r.dme=Math.round(Geo.dist(v,s.pos));
-  r.vor=v;
-
-  var pts=Scenario.buildRoute(s.pos,s.dest);
+// 一條航路(點的陣列)的航段、總距離時間、油量與 ETA。直飛與「另一組答案」共用。
+function routeCalc(s,pts){
   var legs=[],totD=0,totT=0,i;
   for(i=0;i<pts.length-1;i++){
     var tt=Geo.trueBrg(pts[i],pts[i+1]);
@@ -46,20 +45,23 @@ function compute(s){
     legs.push({fromPt:pts[i],toPt:pts[i+1],d:d,tt:tt,mh:mag(tt),t:t});
     totD+=d;totT+=t;
   }
-  r.legs=legs;r.totD=totD;r.totT=totT;r.pts=pts;
-  r.first=legs[0];
+  var burn=totT/60*BURN;
+  return {pts:pts, legs:legs, totD:totD, totT:totT, first:legs[0], multi:legs.length>1,
+          burn:burn, req:burn+RESERVE, remain:s.fuel-burn, eta:hhmm(s.hh,s.mm+Math.round(totT))};
+}
+
+function compute(s){
+  var v=Data.VOR[s.pos.vor];
+  var r=routeCalc(s,Scenario.buildRoute(s.pos,s.dest));
+  r.radial=fmt3(mag(Geo.trueBrg(v,s.pos)));
+  r.dme=Math.round(Geo.dist(v,s.pos));
+  r.vor=v;
   r.ridge=Scenario.crossesRidge(s.pos,s.dest);
   r.dirD=Geo.dist(s.pos,AD[s.dest]);
   r.dirTT=Geo.trueBrg(s.pos,AD[s.dest]);
   r.dirMH=mag(r.dirTT);
-
-  r.burn=r.totT/60*BURN;
-  r.req=r.burn+RESERVE;
-  r.remain=s.fuel-r.burn;
-
-  var em=s.mm+Math.round(totT);
-  r.eta=hhmm(s.hh,em);
-  r.multi=legs.length>1;
+  var alt=Scenario.altRoute(s.pos,s.dest);
+  r.alt = alt ? routeCalc(s,alt) : null;   // 另一組答案(目前只有東部改降高雄:經恆春走 C9)
   return r;
 }
 
@@ -134,7 +136,8 @@ function answers(s,r,lang){
 
   A[2]= s.trig.hold
     ? '<p class="big"><em>HOLD</em></p><p class="note">'+t(lang,'a3.holdNote',{nm:r.totD.toFixed(0)})+'</p>'
-    : '<p class="big"><em>TURN</em></p><p class="note">'+t(lang,'a3.turnNote',{hdg:fmt3(r.first.tt)})+'</p>';
+    : '<p class="big"><em>TURN</em></p><p class="note">'+t(lang,'a3.turnNote',{hdg:fmt3(r.first.tt)})+'</p>'+
+      (r.alt ? altBlock(lang,'<p class="note">'+t(lang,'alt.turn',{hdg:fmt3(r.alt.first.tt)})+'</p>') : '');
 
   // v2.2.1 起主要答案報真航向(使用者要求)。沒有算風,所以 TH = 圖上量到的 TT;
   // 磁航向還是算給你,放在下面那行,要用磁羅盤/HSI 時換算。
@@ -142,6 +145,9 @@ function answers(s,r,lang){
   if(r.multi) hd+=' <span style="font-size:14px;font-weight:400">'+
       t(lang,'a4.first',{from:ptLabel(r.first.fromPt,lang), to:ptLabel(r.first.toPt,lang)})+'</span>';
   hd+='</p><p class="note">'+t(lang,'a4.note',{tt:fmt3(r.first.tt), var:VAR, mh:fmt3(r.first.mh)})+'</p>';
+  if(r.alt) hd+=altBlock(lang,'<p class="alt-big">TH <em>'+fmt3(r.alt.first.tt)+'°</em></p><p class="note">'+
+      t(lang,'alt.hdg',{from:ptLabel(r.alt.first.fromPt,lang), to:ptLabel(r.alt.first.toPt,lang),
+        mh:fmt3(r.alt.first.mh)})+'</p>');
   A[3]=hd;
 
   var pt = (d.kind==='pt');
@@ -157,10 +163,13 @@ function answers(s,r,lang){
   // 不是中央山脈,不要報大漢山
   if(r.ridge) al+='<p class="note">'+(pt ? Data.L(d,'ridge',lang)
                                          : t(lang,(s.pos.fi<0)?'a5.ridgeCape':'a5.ridge'))+'</p>';
+  if(r.alt) al+=altBlock(lang,'<p class="alt-big">'+t(lang,'a5.alt3000')+'</p><p class="note">'+t(lang,'alt.alt')+'</p>');
   A[4]=al;
 
   var td='<p class="big">'+r.totD.toFixed(0)+' NM · ETE '+r.totT.toFixed(0)+' min · ETA <em>'+r.eta+'</em></p>';
   if(r.multi) td+='<p class="note">'+t(lang,'a6.legs',{gs:s.gs})+'</p>'+legTable(r,lang);
+  if(r.alt) td+=altBlock(lang,'<p class="alt-big">'+r.alt.totD.toFixed(0)+' NM · ETE '+r.alt.totT.toFixed(0)+
+      ' min · ETA <em>'+r.alt.eta+'</em></p><p class="note">'+t(lang,'a6.legs',{gs:s.gs})+'</p>'+legTable(r.alt,lang));
   A[5]=td;
 
   // 只報「這趟要燒多少」跟「落地剩多少」。v2.2.1 拿掉「＋保留 3.3 ＝ 需求」那段算式
@@ -178,6 +187,10 @@ function answers(s,r,lang){
     fu+='<p class="note warn">'+t(lang,'a7.noLight',{ad:adName(s.dest,lang), elev:d.elev,
         rwy:Math.round(+d.rwy.replace(/[^0-9,]/g,'').replace(',',''))/100, eta:r.eta})+'</p>';
   }
+  if(r.alt) fu+=altBlock(lang,'<p class="alt-big">'+t(lang,'a7.need')+' <em>'+r.alt.burn.toFixed(1)+' gal</em>'+
+      t(lang,'a7.sep')+t(lang,'a7.remain')+' '+r.alt.remain.toFixed(1)+' gal</p>'+
+      (r.alt.remain<RESERVE ? '<p class="note" style="color:var(--red);font-weight:600">'+
+        t(lang,'a7.low',{res:RESERVE.toFixed(1)})+'</p>' : ''));
   A[6]=fu;
 
   A[7]='<p class="big">'+t(lang,'a8.big')+'</p>';

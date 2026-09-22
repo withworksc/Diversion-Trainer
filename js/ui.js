@@ -30,7 +30,7 @@ function applyStatic(){
 function render(reveal){
   var r=Compute.compute(S);
   document.getElementById('brief').innerHTML=Compute.briefHTML(S,r,lang);
-  document.getElementById('map').innerHTML=Chart.mapSVG(S,r);
+  document.getElementById('map').innerHTML=Chart.mapSVG(S,r,lang);
   var A=reveal?Compute.answers(S,r,lang):null;
   var items=Compute.items(lang), h='';
   for(var i=0;i<items.length;i++){
