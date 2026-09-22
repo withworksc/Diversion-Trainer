@@ -184,3 +184,22 @@ describe('v2.2.2:報告點的答案',()=>{
     assert.match(A('CHENGGONG'),/3,906 ft/);
   });
 });
+
+describe('v2.2.2a:港仔鼻的答案',()=>{
+  function rng(seed){return function(){seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+  const s=Scenario.makeScenario('GANGZIHBI',rng(51)), r=Compute.compute(s);
+  test('高度答案是 4,000 ft 以上,並提到 NANWAN 與半島上空的限航區',()=>{
+    const A=Compute.answers(s,r,'zh');
+    assert.match(A[4],/<p class="big">4,000 ft 以上<\/p>/);
+    assert.match(A[4],/NANWAN/); assert.match(A[4],/HENGCHUNG/);
+    assert.doesNotMatch(A[4],/沿 C\d+ 走廊/);
+  });
+  test('英文版:4,000 ft or above,沒有中文',()=>{
+    const out=[Compute.briefHTML(s,r,'en'),...Compute.answers(s,r,'en')].join(' ');
+    assert.match(out,/4,000 ft or above/); assert.doesNotMatch(out,/[一-鿿]/);
+  });
+  test('距離合理:恆春西邊外海到港仔鼻 12–18 NM,往東北(TH 040–080)',()=>{
+    assert.ok(r.totD>12&&r.totD<18,`${r.totD.toFixed(1)} NM`);
+    assert.ok(r.first.tt>40&&r.first.tt<80,`TT ${r.first.tt.toFixed(0)}`);
+  });
+});

@@ -145,10 +145,11 @@ function answers(s,r,lang){
   A[3]=hd;
 
   var pt = (d.kind==='pt');
-  var altKey = pt ? 'a5.altPoint'
+  var altKey = (pt && d.altMin) ? 'a5.altMin'
+             : pt ? 'a5.altPoint'
              : (s.dest==='RCFN'||s.dest==='RCYU') ? 'a5.alt2500'
              : (s.dest==='RCKW'||s.dest==='RCKH') ? 'a5.alt3000' : 'a5.altIsland';
-  var al='<p class="big">'+t(lang,altKey,{corr:d.corridor})+'</p>'+
+  var al='<p class="big">'+t(lang,altKey,{corr:d.corridor, alt:d.altMin?d.altMin.toLocaleString('en-US'):''})+'</p>'+
     '<p class="note">'+Data.L(d,'note',lang)+'</p>';
   // 報告點沒有機場空域可報,改成提示走廊
   if(!pt) al+='<p class="note">'+t(lang,'a5.airspace',{air:d.air})+'</p>';

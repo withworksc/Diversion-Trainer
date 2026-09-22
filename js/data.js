@@ -102,8 +102,22 @@ var PTS = {
     note:'秀姑巒溪出海口的報告點，C6 海岸走廊。距離長，油量是主要考量。',
     noteEn:'A reporting point at the mouth of the Xiuguluan River on the coastal corridor C6. It is a long leg, so fuel is the main consideration.',
     ridge:'直線橫越海岸山脈，圖上最高標高 5,520 ft。實際要沿 C6 海岸走廊飛。練習飛直線，但 MSA 要一起報出來。',
-    ridgeEn:'The direct track crosses the Coastal Range, with spot heights up to 5,520 ft. In practice you would follow the coastal corridor C6. Fly the straight line for practice, but state the MSA as well.'}
+    ridgeEn:'The direct track crosses the Coastal Range, with spot heights up to 5,520 ft. In practice you would follow the coastal corridor C6. Fly the straight line for practice, but state the MSA as well.'},
+  // v2.2.2a:只出現在「恆春西邊外海直接改降港仔鼻」這種題目(見 scenario.js 的 GZB)。
+  // 直線要越過整個恆春半島,所以高度是 altMin 4,000 ft 以上,不是一般的 2,500/3,000。
+  GANGZIHBI:{kind:'pt', n:'港仔鼻（報告點）', nEn:'Gangzihbi (reporting point)', lat:22.140, lon:120.896,
+    corridor:'C8', altMin:4000,
+    note:'東岸 C8 走廊上的報告點。港仔鼻東邊緊鄰 NANWAN 限航區（3,000–13,000 ft），以 4,000 ft 到達時不要再往東。',
+    noteEn:'A reporting point on the east coast, on corridor C8. The NANWAN restricted area (3,000-13,000 ft) begins just east of Gangzihbi; arriving at 4,000 ft, do not continue east.',
+    ridge:'直線越過恆春半島：底下有 Hengchun E（GND–2,500）、HENGCHUN A（2,500 ft）與 HENGCHUNG 限航區（SFC–2,500），北邊有 3,484 ft 的標高點，所以要在 4,000 ft 以上飛。',
+    ridgeEn:'The direct track crosses the Hengchun peninsula over Hengchun E (GND-2,500), HENGCHUN A (2,500 ft) and the HENGCHUNG restricted area (SFC-2,500), with a 3,484 ft spot height to the north, so fly at 4,000 ft or above.'}
 };
+
+/* 「恆春西邊外海」起始段(v2.2.2a,只給直接改降港仔鼻的題目用)。在航圖上挑的海面,
+   Hengchun E 空域圈裡、半島西岸外約 2 NM;HC 是航圖上「Hengchun」報告點的三角形,
+   位置描述以它為參考(「恆春西方 5 NM 外海」)。 */
+var HCW = {north:{lat:22.095, lon:120.653}, south:{lat:21.987, lon:120.653}};
+var HC = {k:'HC', n:'恆春', en:'Hengchun', lat:22.012, lon:120.741};
 
 // 所有可以當改降目的地的東西:機場(kind 沒寫 = 機場)+ 報告點。出題、答案、地圖都查這張
 var DEST = {};
@@ -153,5 +167,6 @@ function L(obj,field,lang){
 function ptName(pt,lang){ return (lang==='en' && pt && pt.en) ? pt.en : (pt?pt.n:''); }
 
 return {VAR:VAR, BURN:BURN, RESERVE:RESERVE, OFFSHORE:OFFSHORE, L:L, ptName:ptName,
-  CHAIN:CHAIN, CAPE:CAPE, WPT:WPT, VOR:VOR, AD:AD, PTS:PTS, DEST:DEST, isPoint:isPoint, CORRIDORS:CORRIDORS};
+  CHAIN:CHAIN, CAPE:CAPE, HCW:HCW, HC:HC, WPT:WPT, VOR:VOR, AD:AD, PTS:PTS, DEST:DEST, isPoint:isPoint,
+  CORRIDORS:CORRIDORS};
 });

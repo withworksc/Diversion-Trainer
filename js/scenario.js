@@ -51,6 +51,7 @@ var NODES = {};
   var i;
   for(i=0;i<CHAIN.length;i++) NODES[CHAIN[i].k]=CHAIN[i];
   for(i=0;i<CAPE.length;i++) NODES[CAPE[i].k]=CAPE[i];
+  NODES[Data.HC.k]=Data.HC;
 })();
 
 /* 位置的文字描述。出題時只存結構(ref 參考點、side 方位、d 距離),文字在這裡才組出來——
@@ -85,6 +86,22 @@ function makePos(rnd,dir){
   var side = (d<1.6) ? 'on' : (fi<0.5 ? compass(ref,me) : (fi>ni?'N':'S'));
   return {k:'XC', ref:ref.k, side:side, d:d, lat:me.lat, lon:me.lon, fi:fi,
           vor:(fi<4.5?'HCN':'GID'), trk:planTrack(me,fi,dir)};
+}
+
+/* ---------- 恆春西邊外海 → 直接改降港仔鼻(v2.2.2a) ----------
+   使用者:有機會在恆春外海直接改降港仔鼻,但高度要 4,000 ft 以上(直線越過半島上空的
+   Hengchun E、HENGCHUN A、HENGCHUNG 限航區,見 data.js 的 PTS.GANGZIHBI)。
+   這種題目的起點固定在 Data.HCW 那段海面、目的地固定是港仔鼻;隨機時有 GZB_SHARE 的
+   機率出這題,選單指定港仔鼻時一定出這題。一般題目不會抽到港仔鼻(不在 WEIGHT 裡)。 */
+var GZB = 'GANGZIHBI', GZB_SHARE = 0.08, GZB_FI = -4;   // fi 給一個「鵝鑾鼻以西」的值:HCN、南端規則
+function makeHengchunWestPos(rnd,dir){
+  var a=Data.HCW.north, b=Data.HCW.south, t=rnd();
+  var me={lat:a.lat+(b.lat-a.lat)*t, lon:a.lon+(b.lon-a.lon)*t};
+  var d=Geo.dist(Data.HC,me);
+  // 原航線:南下是繞過貓鼻頭往 RCKW 進場,北上是剛從 RCKW 起飛、沿西岸往貓鼻頭
+  var nxt = (dir==='N') ? CAPE[0] : AD[DIRS.S.to];
+  return {k:'XC', ref:Data.HC.k, side:(d<1.6)?'on':compass(Data.HC,me), d:d, lat:me.lat, lon:me.lon,
+          fi:GZB_FI, vor:'HCN', trk:Geo.trueBrg(me,nxt)};
 }
 
 function buildRoute(pos,destKey){
@@ -151,9 +168,12 @@ function pick(a,rng){return a[Math.floor(rng()*a.length)]}
 function makeScenario(force,rnd){
   rnd = rnd || Math.random;
   if(force && force!=='auto' && !DEST[force]) force='auto';   // 不認得的代碼當成隨機
-  var dir=pickDir(force,rnd), plan=DIRS[dir];
-  var pos=makePos(rnd,dir);
-  var destKey=pickDest(force,rnd);
+  var dir=pickDir(force,rnd), plan=DIRS[dir], pos, destKey;
+  if(force===GZB || ((!force||force==='auto') && rnd()<GZB_SHARE)){
+    pos=makeHengchunWestPos(rnd,dir); destKey=GZB;
+  }else{
+    pos=makePos(rnd,dir); destKey=pickDest(force,rnd);
+  }
   var trig=pick(TRIGGERS,rnd);
   var hh=Math.floor(lerp(rnd,7,16)), mm=Math.floor(lerp(rnd,0,60));
   var gs=Math.round(lerp(rnd,85,158)/5)*5;
@@ -163,6 +183,7 @@ function makeScenario(force,rnd){
 }
 
 return {WEIGHT:WEIGHT, TRIGGERS:TRIGGERS, DIRS:DIRS, NORTH_SHARE:NORTH_SHARE, CAPE_SHARE:CAPE_SHARE,
+  GZB:GZB, GZB_SHARE:GZB_SHARE,
   makePos:makePos, posName:posName, trigText:trigText, buildRoute:buildRoute,
   crossesRidge:crossesRidge, pickDir:pickDir, pickDest:pickDest, makeScenario:makeScenario};
 });

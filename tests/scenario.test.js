@@ -182,3 +182,49 @@ describe('v2.2.2:改降到報告點(池上、成功、長虹橋)',()=>{
     }
   });
 });
+
+describe('v2.2.2a:恆春西邊外海直接改降港仔鼻(4,000 ft 以上)',()=>{
+  test('隨機時約 GZB_SHARE 的題目是這題(2 萬題,容差 ±1.5 個百分點)',()=>{
+    const r=rng(41),N=20000;let n=0;
+    for(let i=0;i<N;i++) if(Scenario.makeScenario('auto',r).dest===Scenario.GZB) n++;
+    const pct=n/N*100, exp=Scenario.GZB_SHARE*100;
+    assert.ok(Math.abs(pct-exp)<1.5,`港仔鼻 ${pct.toFixed(1)}%,預期約 ${exp}%`);
+  });
+  test('港仔鼻一定配恆春西邊外海的起點,反過來也是(一般題目不會抽到港仔鼻)',()=>{
+    const r=rng(42);
+    for(let i=0;i<20000;i++){
+      const s=Scenario.makeScenario('auto',r), west=(s.pos.ref==='HC');
+      assert.equal(west, s.dest===Scenario.GZB, `dest=${s.dest} ref=${s.pos.ref}`);
+      if(west){
+        assert.ok(s.pos.lat>=21.987-1e-9&&s.pos.lat<=22.095+1e-9&&Math.abs(s.pos.lon-120.653)<1e-9,`起點不在西側那段:${s.pos.lat},${s.pos.lon}`);
+        assert.equal(s.pos.vor,'HCN');
+      }
+    }
+  });
+  test('選單指定港仔鼻:一定出這題,南下北上都有',()=>{
+    const r=rng(43), dirs=new Set();
+    for(let i=0;i<300;i++){ const s=Scenario.makeScenario('GANGZIHBI',r); assert.equal(s.dest,'GANGZIHBI'); assert.equal(s.pos.ref,'HC'); dirs.add(s.dir); }
+    assert.deepEqual([...dirs].sort(),['N','S']);
+  });
+  test('位置描述以恆春報告點為參考,中英文都對',()=>{
+    const r=rng(44);
+    for(let i=0;i<200;i++){
+      const s=Scenario.makeScenario('GANGZIHBI',r);
+      assert.match(Scenario.posName(s.pos,'zh'),/^恆春(外海|(西|西北|西南)方\d+ NM 外海)$/,Scenario.posName(s.pos,'zh'));
+      assert.match(Scenario.posName(s.pos,'en'),/^(off Hengchun|\d+ NM (west|northwest|southwest) of Hengchun, offshore)$/,Scenario.posName(s.pos,'en'));
+    }
+  });
+  test('原航向:南下指向 RCKW(繞過貓鼻頭進場)、北上指向貓鼻頭(剛從 RCKW 起飛沿西岸南下)',()=>{
+    const Geo=require('../js/geo.js'), r=rng(45);
+    for(let i=0;i<300;i++){
+      const s=Scenario.makeScenario('GANGZIHBI',r);
+      const target = s.dir==='S' ? Data.AD.RCKW : Data.CAPE[0];
+      assert.ok(Math.abs(s.pos.trk-Geo.trueBrg(s.pos,target))<1e-9,`${s.dir} trk=${s.pos.trk.toFixed(0)}`);
+    }
+  });
+  test('港仔鼻的座標釘在航圖量到的位置,而且在 NANWAN 西界(120.919E)西邊',()=>{
+    const p=Data.DEST.GANGZIHBI;
+    assert.equal(p.lat,22.140); assert.equal(p.lon,120.896); assert.equal(p.altMin,4000);
+    assert.ok(p.lon<120.919);
+  });
+});
