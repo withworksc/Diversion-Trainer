@@ -61,7 +61,7 @@ function compute(s){
   r.dirTT=Geo.trueBrg(s.pos,AD[s.dest]);
   r.dirMH=mag(r.dirTT);
   var alt=Scenario.altRoute(s.pos,s.dest);
-  r.alt = alt ? routeCalc(s,alt) : null;   // 另一組答案(目前只有東部改降高雄:經恆春走 C9)
+  r.alt = alt ? routeCalc(s,alt) : null;   // 另一組答案(目前只有東部改降高雄:先到恆春,再直飛)
   return r;
 }
 

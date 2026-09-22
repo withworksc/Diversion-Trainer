@@ -204,46 +204,36 @@ describe('v2.2.2a:港仔鼻的答案',()=>{
   });
 });
 
-describe('v2.2.2a:東部改降高雄的另一組答案(經恆春走 C9)',()=>{
+describe('v2.2.2a:東部改降高雄的另一組答案(先到恆春,再直飛高雄)',()=>{
   const Map=require('../js/map.js');
   function rng(seed){return function(){seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
-  // 點 c 到線段 ab 的最短距離(NM)
-  function segDist(a,b,c){const ab=Geo.dxy(a,b),ac=Geo.dxy(a,c),L=ab[0]**2+ab[1]**2;
-    const t=Math.max(0,Math.min(1,(ab[0]*ac[0]+ab[1]*ac[1])/L));return Math.hypot(ac[0]-t*ab[0],ac[1]-t*ab[1]);}
   const r0=rng(61), kh=[], other=[];
   for(let i=0;i<400;i++){ const s=Scenario.makeScenario(i%2?'RCKH':'auto',r0); (s.dest==='RCKH'?kh:other).push(s); }
 
-  test('改降高雄才有另一組,航路是 位置 → 恆春 → 楓港 → 枋寮 → 東港 → 高雄',()=>{
+  test('改降高雄才有另一組,航路是 位置 → 恆春 → 高雄(恆春以後直線切)',()=>{
     for(const s of kh){
       const r=Compute.compute(s);
       assert.ok(r.alt,'改降高雄應該有另一組');
-      assert.deepEqual(r.alt.pts.slice(1).map(p=>p.k||p.n),['HC','FG','FLB','DG','RCKH 高雄']);
-      assert.equal(r.alt.legs.length,5);
+      assert.deepEqual(r.alt.pts.slice(1).map(p=>p.k||p.n),['HC','RCKH 高雄']);
+      assert.equal(r.alt.legs.length,2);
       const sum=r.alt.legs.reduce((a,l)=>a+l.d,0);
       assert.ok(Math.abs(sum-r.alt.totD)<1e-9);
-      assert.ok(r.alt.totD>r.totD,'繞恆春一定比直飛遠');
+      assert.ok(r.alt.totD>=r.totD-0.05,'繞恆春不會比直飛近(南端起點時恆春幾乎在直飛線上,容許平面近似的小誤差)');
     }
     for(const s of other) assert.equal(Compute.compute(s).alt,null,`${s.dest} 不該有另一組`);
-  });
-  test('為什麼要走 C9:恆春直線到高雄會穿進 RCR34 超過 3 NM;C9 各段頂多貼邊(量測誤差 1 NM 內)',()=>{
-    const Z=Data.RESTRICTED;
-    assert.ok(segDist(Data.HC,Data.AD.RCKH,Z.RCR34)-Z.RCR34.r < -3,'直線應該明顯穿過 RCR34');
-    const route=[Data.HC,...Data.C9,Data.AD.RCKH];
-    for(let i=0;i<route.length-1;i++) for(const [n,z] of Object.entries(Z))
-      assert.ok(segDist(route[i],route[i+1],z)-z.r > -1,`${route[i].n}→${route[i+1].n} 穿進 ${n}`);
   });
   test('答案:改降高雄時,第 3–7 格都有另一組;其他目的地沒有',()=>{
     const s=kh[0], r=Compute.compute(s), A=Compute.answers(s,r,'zh');
     for(const i of [2,3,4,5,6]) assert.match(A[i],/class="alt"/,`第 ${i+1} 格沒有另一組`);
     assert.match(A[3],new RegExp('TH <em>'+Geo.fmt3(r.alt.first.tt)+'°'));
-    assert.match(A[4],/C9/); assert.match(A[4],/RCR34/);
-    assert.match(A[5],/楓港/); assert.match(A[5],/東港/);
+    assert.match(A[4],/RCR34/,'直線經過 RCR34,答案要提醒');
+    assert.match(A[5],/恆春 → RCKH 高雄/);
     const s2=other[0], A2=Compute.answers(s2,Compute.compute(s2),'zh');
     assert.doesNotMatch(A2.join(''),/class="alt"/);
   });
   test('英文版的另一組:via Hengchun、報告點用航圖拼法、沒有中文',()=>{
     const s=kh[1], r=Compute.compute(s), out=Compute.answers(s,r,'en').join(' ');
-    assert.match(out,/via Hengchun/); assert.match(out,/Fangliao Bridge/); assert.match(out,/Donggang/);
+    assert.match(out,/direct to Kaohsiung/); assert.match(out,/Hengchun → RCKH Kaohsiung/); assert.match(out,/RCR34/);
     assert.doesNotMatch(out,/[一-鿿]/);
   });
   test('地圖:改降高雄時多一條橘色航路與圖例,其他目的地沒有;圖例跟著語言',()=>{

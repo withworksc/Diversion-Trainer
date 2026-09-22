@@ -119,20 +119,6 @@ var PTS = {
 var HCW = {north:{lat:22.095, lon:120.653}, south:{lat:21.987, lon:120.653}};
 var HC = {k:'HC', n:'恆春', en:'Hengchun', lat:22.012, lon:120.741};
 
-/* 東部改降高雄的「另一組答案」(v2.2.2a):先回恆春,再沿 C9 西岸走廊到高雄。
-   C9 的定義就是「恆春 ↔ 楓港 ↔ 枋寮 ↔ 東港 ↔ RCKH」(見 CORRIDORS),三個報告點的座標是
-   在航圖上量三角形中心。不能從恆春直線到高雄:那條線會穿進外海的 RCR34 限航區
-   (SFC–14,000 ft)約 5 NM;C9 是貼著 RCR34 東緣畫的,沿岸飛才避得開。 */
-var C9 = [
-  {k:'FG',  n:'楓港', en:'Fonggang',        lat:22.197, lon:120.686},
-  {k:'FLB', n:'枋寮', en:'Fangliao Bridge', lat:22.341, lon:120.611},
-  {k:'DG',  n:'東港', en:'Donggang',        lat:22.461, lon:120.446}
-];
-// 航圖上量的限航區(圓心與半徑,誤差約 ±0.5 NM),給測試檢查另一組答案有沒有穿過去
-var RESTRICTED = {
-  RCR34:{lat:22.281, lon:120.546, r:5.5, top:'14,000 ft'},
-  RCR6: {lat:22.452, lon:120.627, r:5.1, top:'12,000 ft'}
-};
 
 // 所有可以當改降目的地的東西:機場(kind 沒寫 = 機場)+ 報告點。出題、答案、地圖都查這張
 var DEST = {};
@@ -182,6 +168,6 @@ function L(obj,field,lang){
 function ptName(pt,lang){ return (lang==='en' && pt && pt.en) ? pt.en : (pt?pt.n:''); }
 
 return {VAR:VAR, BURN:BURN, RESERVE:RESERVE, OFFSHORE:OFFSHORE, L:L, ptName:ptName,
-  CHAIN:CHAIN, CAPE:CAPE, HCW:HCW, HC:HC, C9:C9, RESTRICTED:RESTRICTED, WPT:WPT, VOR:VOR, AD:AD, PTS:PTS, DEST:DEST, isPoint:isPoint,
+  CHAIN:CHAIN, CAPE:CAPE, HCW:HCW, HC:HC, WPT:WPT, VOR:VOR, AD:AD, PTS:PTS, DEST:DEST, isPoint:isPoint,
   CORRIDORS:CORRIDORS};
 });
