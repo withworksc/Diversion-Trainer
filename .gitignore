@@ -9,3 +9,7 @@ node_modules/
 # archived original chat handoff (1.1 MB single-file prototype with inline
 # base64 raster) — kept locally for reference, not part of the repo
 diversion-trainer.html
+
+# 交接／開發文件只留本機,不進 repo(HANDOFF.md 原本是追蹤的,2026-09-26 移除)
+docs/NEXT-SESSION.md
+docs/HANDOFF.md

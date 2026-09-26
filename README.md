@@ -81,7 +81,6 @@ assets/chart-south.png 底圖（CAA VFR 航圖裁切）
 tools/make_chart.py    從新的 AIRAC PDF 重新產生底圖
 tools/gamepad-test.html 搖桿偵測測試頁
 tests/                 自動化測試 + 抽樣出題表
-docs/HANDOFF.md         開發文件：設計決策、領域資料來源、已知限制與下一步
 ```
 
 沒有框架、沒有 build step、沒有外部依賴。
@@ -108,4 +107,4 @@ GitHub Pages：Settings → Pages → Source: Deploy from a branch → `main` / 
 航向答案報真航向（TH，不算風差）；磁航向附在說明裡。
 
 目前的限制：直線航路（不做地形迴避）、磁差固定 4°W（不隨位置內插）、沒有日沒時間計算、
-沒有作答紀錄。完整清單與後續規劃見 [docs/HANDOFF.md](docs/HANDOFF.md)。
+沒有作答紀錄。
