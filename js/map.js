@@ -42,6 +42,29 @@ function makeProj(need,W,H,pad,minSpan){
 // 「另一組答案」的航路顏色(v2.2.2a)。直飛是紅色 #C41E5A,另一組用橘色,兩條都要看得清楚
 var ALT_COLOR='#E07B00';
 
+/* 圖例擺哪個角(v2.2.3a):台中那組的圖例比較寬,固定放左上角會壓到台中的圈。
+   依序試左上、左下(比例尺上面)、右下、右上(指北針左邊),挑第一個沒壓到航線、改降場圈、
+   本機符號的角;四個都壓到就退回左上。samples 是 viewBox 座標的點。 */
+function routeSamples(P,r,s){
+  var out=[], lines=[r.pts].concat(r.alt?[r.alt.pts]:[]), i, j, k, a, b;
+  for(i=0;i<lines.length;i++) for(j=0;j<lines[i].length-1;j++){
+    a=P(lines[i][j].lat,lines[i][j].lon); b=P(lines[i][j+1].lat,lines[i][j+1].lon);
+    for(k=0;k<=24;k++) out.push([a[0]+(b[0]-a[0])*k/24, a[1]+(b[1]-a[1])*k/24]);
+  }
+  out.push(P(s.pos.lat,s.pos.lon), P(Data.DEST[s.dest].lat,Data.DEST[s.dest].lon));
+  return out;
+}
+function legendSpot(w,h,samples,W,H){
+  var spots=[[10,12],[10,H-34-h],[W-10-w,H-12-h],[W-34-w,12]], M=12, i, j, x, y, hit;   // M:圈半徑 + 留白
+  for(i=0;i<spots.length;i++){
+    x=spots[i][0]; y=spots[i][1]; hit=false;
+    for(j=0;j<samples.length&&!hit;j++)
+      hit = samples[j][0]>x-M && samples[j][0]<x+w+M && samples[j][1]>y-M && samples[j][1]<y+h+M;
+    if(!hit) return spots[i];
+  }
+  return spots[0];
+}
+
 // s：情境（makeScenario 的回傳值），r：compute() 的回傳值，lang：圖例的語言
 function mapSVG(s,r,lang){
   var W=376,H=436,pad=22;
@@ -112,13 +135,25 @@ function mapSVG(s,r,lang){
      '<line x1="'+rr.toFixed(1)+'" y1="-3.5" x2="'+rr.toFixed(1)+'" y2="3.5" stroke="#0E2732" stroke-width="1.6"/>'+
      '<text x="'+(rr/2).toFixed(1)+'" y="-6" font-size="9" text-anchor="middle" fill="#0E2732">10 NM</text></g>';
 
-  /* 有另一組航路時才畫圖例:紅 = 直飛、橘 = 經恆春 */
+  /* 有另一組航路時才畫圖例:紅 = 直飛、橘 = 另一組(文字分場,例如「經恆春」「經恆春、高雄、永康」)。
+     文字裡的 \n 是換行(英文太長時分兩行)。框的寬度照最長那一行估:中日韓字約 9.5、其他約 5.4
+     (font-size 9.5 的 Helvetica),最少維持原本的 118;高度照總行數。擺哪個角見 legendSpot */
   if(r.alt){
-    var lg=[['#C41E5A',I18n.t(lang,'map.direct')],[ALT_COLOR,I18n.t(lang,'map.alt')]];
-    g+='<g transform="translate(10,12)"><rect x="0" y="0" width="118" height="38" rx="3" fill="#F4F0E4" opacity=".92" stroke="#0E2732" stroke-width=".6"/>';
+    var lg=[['#C41E5A',I18n.t(lang,'map.direct')],[ALT_COLOR,I18n.t(lang,'map.alt.'+s.dest)]];
+    var CJK=/[\u3000-\u9fff\uff00-\uffef]/g, tw=0, rows=0, lines, ln, y;
     for(i=0;i<lg.length;i++){
-      g+='<line x1="8" y1="'+(12+i*14)+'" x2="26" y2="'+(12+i*14)+'" stroke="'+lg[i][0]+'" stroke-width="2.6"/>'+
-         '<text x="31" y="'+(15+i*14)+'" font-size="9.5" fill="#0E2732">'+lg[i][1]+'</text>';
+      lines=lg[i][1].split('\n'); rows+=lines.length;
+      for(ln=0;ln<lines.length;ln++)
+        tw=Math.max(tw,lines[ln].replace(CJK,'').length*5.4+(lines[ln].match(CJK)||[]).length*9.5);
+    }
+    var lw=Math.max(118,Math.ceil(31+tw+8)), lh=10+rows*14, at=legendSpot(lw,lh,routeSamples(P,r,s),W,H);
+    g+='<g class="legend" transform="translate('+at[0]+','+at[1]+')"><rect x="0" y="0" width="'+lw+
+       '" height="'+lh+'" rx="3" fill="#F4F0E4" opacity=".92" stroke="#0E2732" stroke-width=".6"/>';
+    for(i=0,y=12;i<lg.length;i++){
+      lines=lg[i][1].split('\n');
+      g+='<line x1="8" y1="'+y+'" x2="26" y2="'+y+'" stroke="'+lg[i][0]+'" stroke-width="2.6"/>';
+      for(ln=0;ln<lines.length;ln++,y+=14)
+        g+='<text x="31" y="'+(y+3)+'" font-size="9.5" fill="#0E2732">'+lines[ln]+'</text>';
     }
     g+='</g>';
   }
@@ -127,5 +162,5 @@ function mapSVG(s,r,lang){
     '<svg class="mapfg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+I18n.t(lang,'map.aria')+'">'+g+'</svg></div>';
 }
 
-return {CHART:CHART, ALT_COLOR:ALT_COLOR, makeProj:makeProj, mapSVG:mapSVG};
+return {CHART:CHART, ALT_COLOR:ALT_COLOR, makeProj:makeProj, mapSVG:mapSVG, legendSpot:legendSpot, routeSamples:routeSamples};
 });

@@ -281,37 +281,69 @@ describe('v2.2.3:改降台中、松山(直線)',()=>{
   });
 });
 
-describe('v2.2.3:台中也有另一組答案(先到恆春,再直線切到台中)',()=>{
+describe('v2.2.3a:台中的另一組答案(恆春 → 高雄 → 永康 → 台中)',()=>{
   const Map=require('../js/map.js');
   const trig={id:'instructor',hold:false};
   const east={pos:{lat:22.28,lon:120.88,fi:4.0,ref:'DR',side:'on',d:0.4,vor:'HCN',trk:200},dest:'RCMQ',hh:10,mm:0,gs:110,alt:3000,fuel:20,lr:false,trig};
   const cape={...east,pos:{lat:21.905,lon:120.715,fi:-3,ref:'MBT',side:'on',d:0.2,vor:'HCN',trk:90}};
-  test('航路是 位置 → 恆春 → 台中,兩段加起來等於總距離',()=>{
+  test('航路是 位置 → 恆春 → 高雄 → 永康 → 台中,四段加起來等於總距離',()=>{
     for(const s of [east,cape]){
       const r=Compute.compute(s);
-      assert.deepEqual(r.alt.pts.slice(1).map(p=>p.k||p.n),['HC','RCMQ 台中']);
-      assert.equal(r.alt.legs.length,2);
+      assert.deepEqual(r.alt.pts.slice(1).map(p=>p.k||p.n),['HC','RCKH 高雄','YK','RCMQ 台中']);
+      assert.equal(r.alt.legs.length,4);
       assert.ok(Math.abs(r.alt.legs.reduce((a,l)=>a+l.d,0)-r.alt.totD)<1e-9);
     }
   });
-  test('答案:第 3–7 格都有另一組,標題寫台中不寫高雄;高度說明講北大武山、大漢山',()=>{
+  test('永康在航圖上的三角形附近(台南),高雄 → 永康 → 台中大致往北',()=>{
+    const r=Compute.compute(east), L=r.alt.legs;
+    assert.ok(Math.abs(Data.YK.lat-23.0165)<0.01&&Math.abs(Data.YK.lon-120.2477)<0.01);
+    assert.ok(L[2].tt>330||L[2].tt<30,`高雄 → 永康 TT ${L[2].tt.toFixed(0)}`);
+    assert.ok(L[3].tt>0&&L[3].tt<40,`永康 → 台中 TT ${L[3].tt.toFixed(0)}`);
+  });
+  test('答案:第 3–7 格都有另一組,標題寫經恆春、高雄、永康;高度說明講西部平原、不再提北大武山',()=>{
     const r=Compute.compute(east), A=Compute.answers(east,r,'zh');
     for(const i of [2,3,4,5,6]) assert.match(A[i],/class="alt"/,`第 ${i+1} 格沒有另一組`);
-    assert.match(A[2],/先到恆春，再直飛台中/); assert.doesNotMatch(A.join(''),/直飛高雄/);
-    assert.match(A[4],/先回恆春，再直線切到台中/); assert.match(A[4],/北大武山（10,145 ft）/);
-    assert.match(A[5],/恆春 → RCMQ 台中/);
+    assert.match(A[2],/經恆春、高雄、永康到台中/); assert.doesNotMatch(A.join(''),/直飛高雄/);
+    assert.match(A[4],/沿西部平原北上到台中/);
+    assert.doesNotMatch(A[4].split('<div class="alt">')[1],/北大武山/);
+    assert.match(A[5],/高雄 → 永康/); assert.match(A[5],/永康 → RCMQ 台中/);
   });
-  test('高雄的標題與說明沒有被改到',()=>{
-    const s={...east,dest:'RCKH'}, A=Compute.answers(s,Compute.compute(s),'zh');
+  test('高雄的標題、說明、圖例沒有被改到',()=>{
+    const s={...east,dest:'RCKH'}, r=Compute.compute(s), A=Compute.answers(s,r,'zh');
     assert.match(A[2],/先到恆春，再直飛高雄/); assert.match(A[4],/不跨中央山脈/);
+    assert.deepEqual(r.alt.pts.slice(1).map(p=>p.k||p.n),['HC','RCKH 高雄']);
+    assert.match(Map.mapSVG(s,r,'zh'),/>經恆春</);
   });
-  test('英文版:direct to Taichung、沒有中文',()=>{
+  test('英文版:via Hengchun, Kaohsiung and Yongkang、沒有中文',()=>{
     const out=Compute.answers(east,Compute.compute(east),'en').join(' ');
-    assert.match(out,/then direct to Taichung/); assert.match(out,/Beidawushan \(10,145 ft\)/);
+    assert.match(out,/via Hengchun, Kaohsiung and Yongkang to Taichung/); assert.match(out,/Kaohsiung → Yongkang/);
     assert.doesNotMatch(out,/[一-鿿]/);
   });
-  test('地圖:台中也畫橘線與圖例',()=>{
-    const m=Map.mapSVG(east,Compute.compute(east),'zh');
-    assert.match(m,/class="alt-route"/); assert.match(m,/經恆春/);
+  test('地圖:橘線經過四個點、圖例寫經恆春、高雄、永康,框夠寬放得下英文',()=>{
+    const r=Compute.compute(east);
+    const zh=Map.mapSVG(east,r,'zh'), en=Map.mapSVG(east,r,'en');
+    assert.match(zh,/class="alt-route"/); assert.match(zh,/經恆春、高雄、永康/);
+    assert.match(en,/>Via Hengchun,<\/text>/); assert.match(en,/>Kaohsiung, Yongkang<\/text>/);   // 英文分兩行
+    const [w,h]=en.match(/<g class="legend" transform="translate\([\d.]+,[\d.]+\)"><rect x="0" y="0" width="(\d+)" height="(\d+)"/).slice(1).map(Number);
+    assert.ok(w>=31+'Kaohsiung, Yongkang'.length*5.4,`圖例框 ${w}px 太窄`); assert.equal(h,10+3*14);
   });
+});
+
+test('v2.2.3a:圖例不會壓到航線、改降場圈、本機符號(高雄、台中各 200 題,中英文)',()=>{
+  const Map=require('../js/map.js');
+  function rng(seed){return function(){seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+  const r0=rng(71); let fallback=0;
+  for(let i=0;i<400;i++){
+    const s=Scenario.makeScenario(i%2?'RCKH':'RCMQ',r0), r=Compute.compute(s);
+    for(const lang of ['zh','en']){
+      const m=Map.mapSVG(s,r,lang).match(/<g class="legend" transform="translate\(([\d.-]+),([\d.-]+)\)"><rect x="0" y="0" width="(\d+)" height="(\d+)"/);
+      assert.ok(m,'沒有圖例');
+      const [x,y,w,h]=m.slice(1).map(Number);
+      assert.ok(x>=0&&y>=0&&x+w<=376&&y+h<=436,`圖例超出地圖 ${x},${y},${w}x${h}`);
+      // 跟 mapSVG 同一個投影,把兩條航線、本機、改降場的取樣點都拿來檢查(四個角都壓到時會退回左上)
+      const P=Map.makeProj(r.pts.concat(r.alt.pts,[s.pos,Data.DEST[s.dest]]),376,436,22,0.72);
+      if(Map.routeSamples(P,r,s).some(([px,py])=>px>x-12&&px<x+w+12&&py>y-12&&py<y+h+12)) fallback++;
+    }
+  }
+  assert.equal(fallback,0,`${fallback} 張圖的圖例壓到航線或改降場圈`);
 });

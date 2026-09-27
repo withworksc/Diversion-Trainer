@@ -134,6 +134,9 @@ var PTS = {
    位置描述以它為參考(「恆春西方 5 NM 外海」)。 */
 var HCW = {north:{lat:22.095, lon:120.653}, south:{lat:21.987, lon:120.653}};
 var HC = {k:'HC', n:'恆春', en:'Hengchun', lat:22.012, lon:120.741};
+/* 永康(v2.2.3a):台南的目視報告點(實心三角形),改降台中「另一組答案」的經過點。座標是在航圖上
+   用影像量三角形的重心(23.0165N 120.2477E),標籤在三角形正下方。 */
+var YK = {k:'YK', n:'永康', en:'Yongkang', lat:23.017, lon:120.248};
 
 
 // 所有可以當改降目的地的東西:機場(kind 沒寫 = 機場)+ 報告點。出題、答案、地圖都查這張
@@ -184,6 +187,6 @@ function L(obj,field,lang){
 function ptName(pt,lang){ return (lang==='en' && pt && pt.en) ? pt.en : (pt?pt.n:''); }
 
 return {VAR:VAR, BURN:BURN, RESERVE:RESERVE, OFFSHORE:OFFSHORE, L:L, ptName:ptName,
-  CHAIN:CHAIN, CAPE:CAPE, HCW:HCW, HC:HC, WPT:WPT, VOR:VOR, AD:AD, PTS:PTS, DEST:DEST, isPoint:isPoint,
+  CHAIN:CHAIN, CAPE:CAPE, HCW:HCW, HC:HC, YK:YK, WPT:WPT, VOR:VOR, AD:AD, PTS:PTS, DEST:DEST, isPoint:isPoint,
   CORRIDORS:CORRIDORS};
 });

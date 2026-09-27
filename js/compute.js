@@ -27,10 +27,9 @@ function ptLabel(pt,lang){
   return pt.en ? Data.ptName(pt,lang) : Data.L(pt,'n',lang);   // 報告點用 en,機場用 nEn
 }
 // 「另一組答案」的區塊:每一格答案底下加一段,標題講清楚是哪一條(地圖上的橘線)。
-// 標題裡的場名不帶 ICAO(「再直飛高雄」),所以把名字前面的代碼拿掉
+// 高雄、台中的走法不同,標題分場寫(i18n 的 alt.title.<ICAO>)
 function altBlock(lang,dest,html){
-  var ad=Data.L(AD[dest],'n',lang).replace(/^[A-Z]{4}\s+/,'');
-  return '<div class="alt"><b>'+t(lang,'alt.title',{ad:ad})+'</b>'+html+'</div>';
+  return '<div class="alt"><b>'+t(lang,'alt.title.'+dest)+'</b>'+html+'</div>';
 }
 function mag(t){return Geo.mag(t,VAR)}
 function fmt3(x){return Geo.fmt3(x)}
@@ -65,7 +64,7 @@ function compute(s){
   r.dirTT=Geo.trueBrg(s.pos,AD[s.dest]);
   r.dirMH=mag(r.dirTT);
   var alt=Scenario.altRoute(s.pos,s.dest);
-  r.alt = alt ? routeCalc(s,alt) : null;   // 另一組答案(改降高雄、台中:先到恆春,再直飛)
+  r.alt = alt ? routeCalc(s,alt) : null;   // 另一組答案(改降高雄、台中,走法見 scenario.js 的 ALT_VIA)
   return r;
 }
 
