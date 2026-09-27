@@ -347,3 +347,25 @@ test('v2.2.3a:圖例不會壓到航線、改降場圈、本機符號(高雄、�
   }
   assert.equal(fallback,0,`${fallback} 張圖的圖例壓到航線或改降場圈`);
 });
+
+describe('v2.2.3b:radial 照航圖羅盤玫瑰算(偏角 3°W,VOR 在玫瑰圓心)',()=>{
+  const trig={id:'instructor',hold:false};
+  const base={dir:'S',dest:'CHENGGONG',hh:10,mm:26,gs:140,alt:3000,fuel:18.1,lr:false,trig};
+  test('VOR 正西方的點:真方位 270 → R-273(不是 VAR 4°W 的 R-274)',()=>{
+    const V=Data.VOR.GID, k=Math.cos(V.lat*Math.PI/180);
+    const s={...base,pos:{lat:V.lat,lon:V.lon-20/(60*k),fi:7.9,ref:'ZB',side:'on',d:0.5,vor:'GID',trk:200}};
+    const r=Compute.compute(s);
+    assert.equal(r.radial,'273'); assert.equal(r.dme,20);
+  });
+  test('使用者回報的那題(知本外海,改降成功):同一個位置現在報 R-275 / 23 DME',()=>{
+    // 舊版報 R-276 / 22,照航圖玫瑰畫會偏 1.5 NM(GID 放在機場、又多算 1° 磁差)
+    const s={...base,pos:{lat:22.6859,lon:121.0632,fi:7.918,ref:'ZB',side:'on',d:0.5,vor:'GID',trk:200}};
+    const r=Compute.compute(s);
+    assert.equal(r.radial,'275'); assert.equal(r.dme,23);
+  });
+  test('航向答案的磁差照舊是 4°W(TT + 4 = MH)',()=>{
+    const s={...base,pos:{lat:22.6859,lon:121.0632,fi:7.918,ref:'ZB',side:'on',d:0.5,vor:'GID',trk:200}};
+    const r=Compute.compute(s);
+    assert.equal(Math.round(r.first.mh),Math.round((r.first.tt+4)%360));
+  });
+});

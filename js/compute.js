@@ -56,7 +56,8 @@ function routeCalc(s,pts){
 function compute(s){
   var v=Data.VOR[s.pos.vor];
   var r=routeCalc(s,Scenario.buildRoute(s.pos,s.dest));
-  r.radial=fmt3(mag(Geo.trueBrg(v,s.pos)));
+  // radial 照航圖羅盤玫瑰的偏角算(v2.2.3b,Data.VOR 的 decl),不是航向用的 VAR 4°W
+  r.radial=fmt3(Geo.mag(Geo.trueBrg(v,s.pos),v.decl));
   r.dme=Math.round(Geo.dist(v,s.pos));
   r.vor=v;
   r.ridge=Scenario.crossesRidge(s.pos,s.dest);

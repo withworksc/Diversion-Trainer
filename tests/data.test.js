@@ -4,19 +4,26 @@ const assert=require('node:assert/strict');
 const Geo=require('../js/geo.js');
 const Data=require('../js/data.js');
 
-test('HCN 在鵝鑾鼻附近的羅盤玫瑰,不是恆春機場(docs/HANDOFF.md §2.2 的更正)',()=>{
-  assert.equal(Data.VOR.HCN.lat,21.930);
-  assert.equal(Data.VOR.HCN.lon,120.840);
-  // 跟恆春機場(22.041,120.730)明顯不同一點(舊版錯誤座標曾經直接等於機場,距離 0)
-  // 實際約 9 NM(docs/HANDOFF.md §2.2 寫「約 11 NM」是概略描述)
+test('HCN 在鵝鑾鼻附近的羅盤玫瑰圓心,不是恆春機場(docs/HANDOFF.md §2.2 的更正)',()=>{
+  // v2.2.3b 在航圖上重量圓環的圓心:21.9278N 120.8440E(舊值 21.930/120.840 差 0.26 NM)
+  assert.equal(Data.VOR.HCN.lat,21.928);
+  assert.equal(Data.VOR.HCN.lon,120.844);
   const d=Geo.dist(Data.VOR.HCN,Data.AD.RCKW);
   assert.ok(d>5,`HCN 距 RCKW ${d.toFixed(1)} NM,應明顯大於 0`);
 });
 
-test('GID 在綠島機場',()=>{
-  assert.equal(Data.VOR.GID.lat,22.673);
-  assert.equal(Data.VOR.GID.lon,121.465);
-  assert.ok(Geo.dist(Data.VOR.GID,Data.AD.RCGI)<0.5);
+test('GID 在羅盤玫瑰圓心,綠島機場東邊約 1.2 NM(v2.2.3b 更正:以前放在機場上)',()=>{
+  assert.equal(Data.VOR.GID.lat,22.672);
+  assert.equal(Data.VOR.GID.lon,121.486);
+  const d=Geo.dist(Data.VOR.GID,Data.AD.RCGI);
+  assert.ok(d>1.0&&d<1.4,`GID 距 RCGI ${d.toFixed(2)} NM`);
+  assert.ok(Geo.trueBrg(Data.AD.RCGI,Data.VOR.GID)>80&&Geo.trueBrg(Data.AD.RCGI,Data.VOR.GID)<100,'GID 應該在機場正東邊');
+});
+
+test('兩個 VOR 的羅盤玫瑰偏角都是 3°W(航圖上玫瑰的北在真方位 357°)',()=>{
+  assert.equal(Data.VOR.HCN.decl,3);
+  assert.equal(Data.VOR.GID.decl,3);
+  assert.equal(Data.VAR,4,'航向用的等磁差線 VAR 不跟著改');
 });
 
 describe('機場資料：燈光與空域',()=>{
