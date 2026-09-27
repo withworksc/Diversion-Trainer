@@ -110,10 +110,14 @@ function buildRoute(pos,destKey){
 
 // 「另一組答案」的航路(v2.2.2a):改降高雄時,除了直飛(跨中央山脈)之外,再給一條先回恆春、
 // 恆春以後直線切到高雄的航路(使用者:高雄西部可以直接切直線)。這段直線會經過外海的
-// RCR34 限航區(SFC–14,000 ft),使用者決定答案不提,見 docs/HANDOFF.md。其他目的地回傳 null。
+// RCR34 限航區(SFC–14,000 ft),使用者決定答案不提,見 docs/HANDOFF.md。
+// v2.2.3 台中也比照(使用者:恆春的航點後,直線過去就好)。恆春到台中這段貼著中央山脈西側,
+// 離北大武山、大漢山都只有約 2 NM,答案的高度說明有講(i18n 的 alt.alt.RCMQ)。
+// 其他目的地回傳 null。
+var ALT_VIA_HC = ['RCKH','RCMQ'];
 function altRoute(pos,destKey){
-  if(destKey!=='RCKH') return null;
-  return [pos, Data.HC, AD.RCKH];
+  if(ALT_VIA_HC.indexOf(destKey)<0) return null;
+  return [pos, Data.HC, AD[destKey]];
 }
 
 /* 直線是否跨過中央山脈（只用來提示 MSA，不改航路 —— 出題器故意只飛直線，
@@ -195,7 +199,7 @@ function makeScenario(force,rnd){
 }
 
 return {WEIGHT:WEIGHT, TRIGGERS:TRIGGERS, DIRS:DIRS, NORTH_SHARE:NORTH_SHARE, CAPE_SHARE:CAPE_SHARE,
-  GZB:GZB, GZB_SHARE:GZB_SHARE,
+  GZB:GZB, GZB_SHARE:GZB_SHARE, ALT_VIA_HC:ALT_VIA_HC,
   makePos:makePos, posName:posName, trigText:trigText, buildRoute:buildRoute, altRoute:altRoute,
   crossesRidge:crossesRidge, pickDir:pickDir, pickDest:pickDest, makeScenario:makeScenario};
 });

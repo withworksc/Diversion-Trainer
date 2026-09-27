@@ -26,8 +26,12 @@ function ptLabel(pt,lang){
   if(pt.k==='XC') return Scenario.posName(pt,lang);
   return pt.en ? Data.ptName(pt,lang) : Data.L(pt,'n',lang);   // 報告點用 en,機場用 nEn
 }
-// 「另一組答案」的區塊:每一格答案底下加一段,標題講清楚是哪一條(地圖上的橘線)
-function altBlock(lang,html){ return '<div class="alt"><b>'+t(lang,'alt.title')+'</b>'+html+'</div>'; }
+// 「另一組答案」的區塊:每一格答案底下加一段,標題講清楚是哪一條(地圖上的橘線)。
+// 標題裡的場名不帶 ICAO(「再直飛高雄」),所以把名字前面的代碼拿掉
+function altBlock(lang,dest,html){
+  var ad=Data.L(AD[dest],'n',lang).replace(/^[A-Z]{4}\s+/,'');
+  return '<div class="alt"><b>'+t(lang,'alt.title',{ad:ad})+'</b>'+html+'</div>';
+}
 function mag(t){return Geo.mag(t,VAR)}
 function fmt3(x){return Geo.fmt3(x)}
 
@@ -61,7 +65,7 @@ function compute(s){
   r.dirTT=Geo.trueBrg(s.pos,AD[s.dest]);
   r.dirMH=mag(r.dirTT);
   var alt=Scenario.altRoute(s.pos,s.dest);
-  r.alt = alt ? routeCalc(s,alt) : null;   // 另一組答案(目前只有東部改降高雄:先到恆春,再直飛)
+  r.alt = alt ? routeCalc(s,alt) : null;   // 另一組答案(改降高雄、台中:先到恆春,再直飛)
   return r;
 }
 
@@ -137,7 +141,7 @@ function answers(s,r,lang){
   A[2]= s.trig.hold
     ? '<p class="big"><em>HOLD</em></p><p class="note">'+t(lang,'a3.holdNote',{nm:r.totD.toFixed(0)})+'</p>'
     : '<p class="big"><em>TURN</em></p><p class="note">'+t(lang,'a3.turnNote',{hdg:fmt3(r.first.tt)})+'</p>'+
-      (r.alt ? altBlock(lang,'<p class="note">'+t(lang,'alt.turn',{hdg:fmt3(r.alt.first.tt)})+'</p>') : '');
+      (r.alt ? altBlock(lang,s.dest,'<p class="note">'+t(lang,'alt.turn',{hdg:fmt3(r.alt.first.tt)})+'</p>') : '');
 
   // v2.2.1 起主要答案報真航向(使用者要求)。沒有算風,所以 TH = 圖上量到的 TT;
   // 磁航向還是算給你,放在下面那行,要用磁羅盤/HSI 時換算。
@@ -145,7 +149,7 @@ function answers(s,r,lang){
   if(r.multi) hd+=' <span style="font-size:14px;font-weight:400">'+
       t(lang,'a4.first',{from:ptLabel(r.first.fromPt,lang), to:ptLabel(r.first.toPt,lang)})+'</span>';
   hd+='</p><p class="note">'+t(lang,'a4.note',{tt:fmt3(r.first.tt), var:VAR, mh:fmt3(r.first.mh)})+'</p>';
-  if(r.alt) hd+=altBlock(lang,'<p class="alt-big">TH <em>'+fmt3(r.alt.first.tt)+'°</em></p><p class="note">'+
+  if(r.alt) hd+=altBlock(lang,s.dest,'<p class="alt-big">TH <em>'+fmt3(r.alt.first.tt)+'°</em></p><p class="note">'+
       t(lang,'alt.hdg',{from:ptLabel(r.alt.first.fromPt,lang), to:ptLabel(r.alt.first.toPt,lang),
         mh:fmt3(r.alt.first.mh)})+'</p>');
   A[3]=hd;
@@ -164,12 +168,12 @@ function answers(s,r,lang){
   // 南端(鵝鑾鼻以西)往東北切過的是恆春半島南端的丘陵,不是中央山脈,不要報大漢山
   if(r.ridge) al+='<p class="note">'+(d.ridge ? Data.L(d,'ridge',lang)
                                              : t(lang,(s.pos.fi<0)?'a5.ridgeCape':'a5.ridge'))+'</p>';
-  if(r.alt) al+=altBlock(lang,'<p class="alt-big">'+t(lang,'a5.alt3000')+'</p><p class="note">'+t(lang,'alt.alt')+'</p>');
+  if(r.alt) al+=altBlock(lang,s.dest,'<p class="alt-big">'+t(lang,'a5.alt3000')+'</p><p class="note">'+t(lang,'alt.alt.'+s.dest)+'</p>');
   A[4]=al;
 
   var td='<p class="big">'+r.totD.toFixed(0)+' NM · ETE '+r.totT.toFixed(0)+' min · ETA <em>'+r.eta+'</em></p>';
   if(r.multi) td+='<p class="note">'+t(lang,'a6.legs',{gs:s.gs})+'</p>'+legTable(r,lang);
-  if(r.alt) td+=altBlock(lang,'<p class="alt-big">'+r.alt.totD.toFixed(0)+' NM · ETE '+r.alt.totT.toFixed(0)+
+  if(r.alt) td+=altBlock(lang,s.dest,'<p class="alt-big">'+r.alt.totD.toFixed(0)+' NM · ETE '+r.alt.totT.toFixed(0)+
       ' min · ETA <em>'+r.alt.eta+'</em></p><p class="note">'+t(lang,'a6.legs',{gs:s.gs})+'</p>'+legTable(r.alt,lang));
   A[5]=td;
 
@@ -188,7 +192,7 @@ function answers(s,r,lang){
     fu+='<p class="note warn">'+t(lang,'a7.noLight',{ad:adName(s.dest,lang), elev:d.elev,
         rwy:Math.round(+d.rwy.replace(/[^0-9,]/g,'').replace(',',''))/100, eta:r.eta})+'</p>';
   }
-  if(r.alt) fu+=altBlock(lang,'<p class="alt-big">'+t(lang,'a7.need')+' <em>'+r.alt.burn.toFixed(1)+' gal</em>'+
+  if(r.alt) fu+=altBlock(lang,s.dest,'<p class="alt-big">'+t(lang,'a7.need')+' <em>'+r.alt.burn.toFixed(1)+' gal</em>'+
       t(lang,'a7.sep')+t(lang,'a7.remain')+' '+r.alt.remain.toFixed(1)+' gal</p>'+
       (r.alt.remain<RESERVE ? '<p class="note" style="color:var(--red);font-weight:600">'+
         t(lang,'a7.low',{res:RESERVE.toFixed(1)})+'</p>' : ''));

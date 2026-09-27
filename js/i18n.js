@@ -87,10 +87,11 @@ zh: {
 
   'leg.leg':'航段', 'leg.total':'合計',
 
-  'alt.title':'另一組答案：先到恆春，再直飛高雄（地圖上的橘線）',
+  'alt.title':'另一組答案：先到恆春，再直飛{ad}（地圖上的橘線）',
   'alt.turn':'走經恆春這組的話，初始概略轉向 {hdg}°。',
   'alt.hdg':'第一段：{from} → {to}（MH {mh}°）。',
-  'alt.alt':'先回恆春，再直線切到高雄，不跨中央山脈。',
+  'alt.alt.RCKH':'先回恆春，再直線切到高雄，不跨中央山脈。',
+  'alt.alt.RCMQ':'先回恆春，再直線切到台中。這段直線貼著中央山脈西側往北，離北大武山（10,145 ft）、大漢山（5,538 ft）都只有約 2 NM，MSA 要一起報出來。',
   'map.aria':'本機位置與改降航路',
   'map.direct':'直飛',
   'map.alt':'經恆春',
@@ -182,10 +183,11 @@ en: {
 
   'leg.leg':'Leg', 'leg.total':'Total',
 
-  'alt.title':'Alternative: to Hengchun first, then direct to Kaohsiung (orange line on the map)',
+  'alt.title':'Alternative: to Hengchun first, then direct to {ad} (orange line on the map)',
   'alt.turn':'For the via-Hengchun option, initial rough turn {hdg}°.',
   'alt.hdg':'First leg: {from} → {to} (MH {mh}°).',
-  'alt.alt':'Back to Hengchun first, then a straight line to Kaohsiung, which avoids the Central Range.',
+  'alt.alt.RCKH':'Back to Hengchun first, then a straight line to Kaohsiung, which avoids the Central Range.',
+  'alt.alt.RCMQ':'Back to Hengchun first, then a straight line to Taichung. That leg runs north along the western flank of the Central Mountain Range, only about 2 NM from Beidawushan (10,145 ft) and Dahanshan (5,538 ft), so state the MSA as well.',
   'map.aria':'Aircraft position and diversion route',
   'map.direct':'Direct',
   'map.alt':'Via Hengchun',

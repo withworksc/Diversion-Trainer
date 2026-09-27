@@ -208,7 +208,8 @@ describe('v2.2.2a:東部改降高雄的另一組答案(先到恆春,再直飛高
   const Map=require('../js/map.js');
   function rng(seed){return function(){seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
   const r0=rng(61), kh=[], other=[];
-  for(let i=0;i<400;i++){ const s=Scenario.makeScenario(i%2?'RCKH':'auto',r0); (s.dest==='RCKH'?kh:other).push(s); }
+  // other:沒有另一組的目的地(v2.2.3 起台中也有,排除掉,台中的測試在後面)
+  for(let i=0;i<400;i++){ const s=Scenario.makeScenario(i%2?'RCKH':'auto',r0); if(s.dest==='RCKH') kh.push(s); else if(s.dest!=='RCMQ') other.push(s); }
 
   test('改降高雄才有另一組,航路是 位置 → 恆春 → 高雄(恆春以後直線切)',()=>{
     for(const s of kh){
@@ -253,10 +254,11 @@ describe('v2.2.3:改降台中、松山(直線)',()=>{
   test('高度照高雄的做法:3,000 ft 或以下,加上各自的中央山脈標高,不報大漢山、不報恆春半島丘陵',()=>{
     for(const [dest,top] of [['RCMQ','10,145'],['RCSS','12,276']]) for(const base of [east,cape]){
       const s={...base,dest}, r=Compute.compute(s), A=Compute.answers(s,r,'zh');
+      const direct=A[4].split('<div class="alt">')[0];   // 台中的另一組(經恆春)另外測
       assert.equal(r.ridge,true);
-      assert.match(A[4],/3,000 ft 或以下/);
-      assert.ok(A[4].includes(top),`${dest} @ fi=${s.pos.fi} 沒有 ${top}`);
-      assert.doesNotMatch(A[4],/大漢山|恆春半島南端/);
+      assert.match(direct,/3,000 ft 或以下/);
+      assert.ok(direct.includes(top),`${dest} @ fi=${s.pos.fi} 沒有 ${top}`);
+      assert.doesNotMatch(direct,/大漢山|恆春半島南端/);
     }
   });
   test('有燈、不出日間限定;空域照航圖',()=>{
@@ -266,14 +268,50 @@ describe('v2.2.3:改降台中、松山(直線)',()=>{
       assert.ok(A[4].includes(air));
     }
   });
-  test('距離是直線、沒有另一組;松山比台中、花蓮都遠',()=>{
+  test('直飛是一段直線;松山沒有另一組;松山比台中、花蓮都遠',()=>{
     const d=k=>Compute.compute({...east,dest:k});
-    for(const k of ['RCMQ','RCSS']){ const r=d(k); assert.equal(r.multi,false); assert.equal(r.alt,null); }
+    for(const k of ['RCMQ','RCSS']) assert.equal(d(k).multi,false);
+    assert.equal(d('RCSS').alt,null);
     assert.ok(d('RCSS').totD>d('RCMQ').totD && d('RCSS').totD>d('RCYU').totD);
   });
   test('英文版:山名用拼音、沒有中文',()=>{
     const s={...east,dest:'RCSS'}, out=Compute.answers(s,Compute.compute(s),'en').join(' ');
     assert.match(out,/Nanhu Dashan/); assert.match(out,/RCSS Songshan|Songshan C/);
     assert.doesNotMatch(out,/[一-鿿]/);
+  });
+});
+
+describe('v2.2.3:台中也有另一組答案(先到恆春,再直線切到台中)',()=>{
+  const Map=require('../js/map.js');
+  const trig={id:'instructor',hold:false};
+  const east={pos:{lat:22.28,lon:120.88,fi:4.0,ref:'DR',side:'on',d:0.4,vor:'HCN',trk:200},dest:'RCMQ',hh:10,mm:0,gs:110,alt:3000,fuel:20,lr:false,trig};
+  const cape={...east,pos:{lat:21.905,lon:120.715,fi:-3,ref:'MBT',side:'on',d:0.2,vor:'HCN',trk:90}};
+  test('航路是 位置 → 恆春 → 台中,兩段加起來等於總距離',()=>{
+    for(const s of [east,cape]){
+      const r=Compute.compute(s);
+      assert.deepEqual(r.alt.pts.slice(1).map(p=>p.k||p.n),['HC','RCMQ 台中']);
+      assert.equal(r.alt.legs.length,2);
+      assert.ok(Math.abs(r.alt.legs.reduce((a,l)=>a+l.d,0)-r.alt.totD)<1e-9);
+    }
+  });
+  test('答案:第 3–7 格都有另一組,標題寫台中不寫高雄;高度說明講北大武山、大漢山',()=>{
+    const r=Compute.compute(east), A=Compute.answers(east,r,'zh');
+    for(const i of [2,3,4,5,6]) assert.match(A[i],/class="alt"/,`第 ${i+1} 格沒有另一組`);
+    assert.match(A[2],/先到恆春，再直飛台中/); assert.doesNotMatch(A.join(''),/直飛高雄/);
+    assert.match(A[4],/先回恆春，再直線切到台中/); assert.match(A[4],/北大武山（10,145 ft）/);
+    assert.match(A[5],/恆春 → RCMQ 台中/);
+  });
+  test('高雄的標題與說明沒有被改到',()=>{
+    const s={...east,dest:'RCKH'}, A=Compute.answers(s,Compute.compute(s),'zh');
+    assert.match(A[2],/先到恆春，再直飛高雄/); assert.match(A[4],/不跨中央山脈/);
+  });
+  test('英文版:direct to Taichung、沒有中文',()=>{
+    const out=Compute.answers(east,Compute.compute(east),'en').join(' ');
+    assert.match(out,/then direct to Taichung/); assert.match(out,/Beidawushan \(10,145 ft\)/);
+    assert.doesNotMatch(out,/[一-鿿]/);
+  });
+  test('地圖:台中也畫橘線與圖例',()=>{
+    const m=Map.mapSVG(east,Compute.compute(east),'zh');
+    assert.match(m,/class="alt-route"/); assert.match(m,/經恆春/);
   });
 });
