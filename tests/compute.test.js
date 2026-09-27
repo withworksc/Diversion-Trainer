@@ -245,3 +245,35 @@ describe('v2.2.2a:東部改降高雄的另一組答案(先到恆春,再直飛高
     assert.doesNotMatch(m2,/alt-route/); assert.doesNotMatch(m2,/經恆春/);
   });
 });
+
+describe('v2.2.3:改降台中、松山(直線)',()=>{
+  const trig={id:'instructor',hold:false};
+  const east={pos:{lat:22.28,lon:120.88,fi:4.0,ref:'DR',side:'on',d:0.4,vor:'HCN'},hh:10,mm:0,gs:110,alt:3000,fuel:20,lr:false,trig};
+  const cape={...east,pos:{lat:21.905,lon:120.715,fi:-3,ref:'MBT',side:'on',d:0.2,vor:'HCN'}};
+  test('高度照高雄的做法:3,000 ft 或以下,加上各自的中央山脈標高,不報大漢山、不報恆春半島丘陵',()=>{
+    for(const [dest,top] of [['RCMQ','10,145'],['RCSS','12,276']]) for(const base of [east,cape]){
+      const s={...base,dest}, r=Compute.compute(s), A=Compute.answers(s,r,'zh');
+      assert.equal(r.ridge,true);
+      assert.match(A[4],/3,000 ft 或以下/);
+      assert.ok(A[4].includes(top),`${dest} @ fi=${s.pos.fi} 沒有 ${top}`);
+      assert.doesNotMatch(A[4],/大漢山|恆春半島南端/);
+    }
+  });
+  test('有燈、不出日間限定;空域照航圖',()=>{
+    for(const [dest,air] of [['RCMQ','Taichung D GND-3500'],['RCSS','Songshan C GND-7000']]){
+      const s={...east,dest}, A=Compute.answers(s,Compute.compute(s),'zh');
+      assert.doesNotMatch(A[6],/日間限定/);
+      assert.ok(A[4].includes(air));
+    }
+  });
+  test('距離是直線、沒有另一組;松山比台中、花蓮都遠',()=>{
+    const d=k=>Compute.compute({...east,dest:k});
+    for(const k of ['RCMQ','RCSS']){ const r=d(k); assert.equal(r.multi,false); assert.equal(r.alt,null); }
+    assert.ok(d('RCSS').totD>d('RCMQ').totD && d('RCSS').totD>d('RCYU').totD);
+  });
+  test('英文版:山名用拼音、沒有中文',()=>{
+    const s={...east,dest:'RCSS'}, out=Compute.answers(s,Compute.compute(s),'en').join(' ');
+    assert.match(out,/Nanhu Dashan/); assert.match(out,/RCSS Songshan|Songshan C/);
+    assert.doesNotMatch(out,/[一-鿿]/);
+  });
+});

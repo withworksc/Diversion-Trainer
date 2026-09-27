@@ -57,7 +57,7 @@ test('makePos:南端沿岸南下往西(往貓鼻頭、RCKW)、北上往東(往�
 
 test('pickDest:強制指定的改降場優先於權重',()=>{
   const r=rng(2);
-  for(const k of ['RCKH','RCLY','RCFN','RCGI','RCYU','RCKW']){
+  for(const k of ['RCKH','RCLY','RCFN','RCGI','RCYU','RCKW','RCMQ','RCSS']){
     assert.equal(Scenario.pickDest(k,r),k);
   }
 });
@@ -80,7 +80,9 @@ describe('crossesRidge:MSA 提示規則',()=>{
     ['RCKH',{fi:2},true],['RCKH',{fi:7},true],
     ['RCFN',{fi:3.0},true],['RCFN',{fi:4.0},false],
     ['RCYU',{fi:3.0},true],['RCYU',{fi:4.0},false],
-    ['RCKW',{fi:5.0},true],['RCKW',{fi:4.0},false]
+    ['RCKW',{fi:5.0},true],['RCKW',{fi:4.0},false],
+    // v2.2.3:台中、松山從哪裡直飛都跨中央山脈,南端(fi<0)也一樣
+    ...[-2.5,-1,0.5,1.2,3,4.5,6,8].flatMap(fi=>[['RCMQ',{fi},true],['RCSS',{fi},true]])
   ];
   for(const [dest,pos,exp] of cases){
     test(`${dest} @ fi=${pos.fi} → ${exp}`,()=>{assert.equal(Scenario.crossesRidge(pos,dest),exp)});

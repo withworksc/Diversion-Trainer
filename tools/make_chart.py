@@ -28,8 +28,12 @@ from PIL import Image
 
 Image.MAX_IMAGE_PIXELS = None
 
-# Region the trainer needs: RCYU in the north through RCLY and Eluanbi.
-CROP = dict(lon0=119.85, lon1=121.90, lat0=21.75, lat1=24.30)
+# Region the trainer needs: Songshan (RCSS) in the north through RCLY and Eluanbi,
+# Penghu in the west. v2.2.3 grew it from lon 119.85-121.90 / lat 21.75-24.30 when
+# RCMQ and RCSS became diversion fields. The east edge stops at 122.05 because the
+# sheet's elevation legend starts around 122.1. The output keeps the old basename
+# (chart-south) so existing references still work.
+CROP = dict(lon0=119.40, lon1=122.05, lat0=21.75, lat1=25.40)
 
 # The sheet carries five panels. Graticule labels from the Kinmen/Matsu insets
 # must not contaminate the fit, so labels are clustered by position and only
@@ -114,7 +118,7 @@ def main():
     ap.add_argument("pdf", help="CAA VFR chart PDF")
     ap.add_argument("-o", "--outdir", default=".", help="output directory")
     ap.add_argument("--name", default="chart-south", help="output basename")
-    ap.add_argument("--width", type=int, default=1400, help="output width in px")
+    ap.add_argument("--width", type=int, default=1810, help="output width in px (1810 keeps ~683 px per degree of longitude)")
     ap.add_argument("--colors", type=int, default=128, help="palette size")
     ap.add_argument("--zoom", type=float, default=1.6, help="render zoom before downscale")
     ap.add_argument("--base64", action="store_true",

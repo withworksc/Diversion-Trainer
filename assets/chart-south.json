@@ -2,14 +2,14 @@
   "source": "VFR Chart - ICAO - Taipei FIR - 1.500000 - 20250920 (English).pdf",
   "projection": "spherical Mercator, matches CAA sheet",
   "bounds": {
-    "lon0": 119.85,
-    "lon1": 121.9,
+    "lon0": 119.4,
+    "lon1": 122.05,
     "lat0": 21.75,
-    "lat1": 24.3
+    "lat1": 25.4
   },
   "pixels": {
-    "width": 1400,
-    "height": 1882
+    "width": 1810,
+    "height": 2705
   },
   "sheet_transform": {
     "comment": "PDF points on the full sheet; Ymerc in degrees",

@@ -73,7 +73,23 @@ var AD = {
   RCYU:{n:'RCYU 花蓮', nEn:'RCYU Hualien', lat:24.023, lon:121.618, elev:51, rwy:'2,800 m', lit:true,
         air:'Hualien D GND-3000', fis:'花蓮近場 119.5',
         note:'沿東海岸北上（對應走廊 C12）。距離長，油量與日照是主要限制，不是航向問題。',
-        noteEn:'North along the east coast (corridor C12). It is a long leg - fuel and daylight are the limits here, not the heading.', fisEn:'Hualien Approach 119.5'}
+        noteEn:'North along the east coast (corridor C12). It is a long leg - fuel and daylight are the limits here, not the heading.', fisEn:'Hualien Approach 119.5'},
+  /* v2.2.3:台中、松山(使用者:先直線就好)。資料方塊、空域照航圖讀;座標是量航圖上機場符號的
+     中心,跟公告座標差 < 0.2 NM。fis 沒有顯示在畫面上,頻率沒在圖上核對過,所以只寫單位名稱。
+     ridge:直線一定跨中央山脈(crossesRidge 一律 true),標高是航圖上航線兩側 5 NM 內最高的
+     標高點(在圖上逐個起點量過),山名是用公尺換算對回去的。 */
+  RCMQ:{n:'RCMQ 台中', nEn:'RCMQ Taichung', lat:24.267, lon:120.622, elev:665, rwy:'3,700 m', lit:true,
+        air:'Taichung D GND-3500', fis:'台中近場', fisEn:'Taichung Approach',
+        note:'距離長，油量要算清楚。落地前進入 Taichung D GND-3500，進入前須取得許可。',
+        noteEn:'A long leg, so work the fuel carefully. Inbound you enter Taichung D GND-3500; clearance is required before entering.',
+        ridge:'直線橫越中央山脈，航線兩側 5 NM 內圖上最高標高 10,145–10,809 ft（看起點：北大武山 10,145、卑南主山 10,809）。練習飛直線，但 MSA 要一起報出來。',
+        ridgeEn:'The direct track crosses the Central Mountain Range; the highest spot elevation within 5 NM of the track is 10,145-10,809 ft depending on the start point (Beidawushan 10,145, Beinanzhushan 10,809). Fly the straight line for practice, but state the MSA as well.'},
+  RCSS:{n:'RCSS 松山', nEn:'RCSS Songshan', lat:25.069, lon:121.551, elev:18, rwy:'2,600 m', lit:true,
+        air:'Songshan C GND-7000', fis:'台北近場', fisEn:'Taipei Approach',
+        note:'所有改降場裡最遠的一個，油量一定要算清楚。落地前進入 Songshan C GND-7000，進入前須取得許可。',
+        noteEn:'The longest of all the diversions, so work the fuel carefully. Inbound you enter Songshan C GND-7000; clearance is required before entering.',
+        ridge:'直線沿中央山脈往北，航線兩側 5 NM 內圖上最高標高 12,276 ft（南湖大山）。練習飛直線，但 MSA 要一起報出來。',
+        ridgeEn:'The direct track runs north along the Central Mountain Range; the highest spot elevation within 5 NM of the track is 12,276 ft (Nanhu Dashan). Fly the straight line for practice, but state the MSA as well.'}
 };
 
 /* ---------- 目視報告點當改降目的地(v2.2.2)----------

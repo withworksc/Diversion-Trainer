@@ -126,6 +126,8 @@ function crossesRidge(pos,destKey){
   // 報告點(池上、成功、長虹橋)從 C8 任何位置直飛都會碰到海岸山脈或都蘭一帶的地形
   // (在航圖上畫線看過),一律提示;地形細節在 data.js 各點的 ridge 欄位
   if(Data.isPoint(destKey)) return true;
+  // 台中、松山(v2.2.3)從哪裡直飛都要橫越中央山脈,南端也一樣
+  if(destKey==='RCMQ'||destKey==='RCSS') return true;
   if(fi<0) return destKey==='RCFN'||destKey==='RCYU';
   if(destKey==='RCGI'||destKey==='RCLY') return false;
   if(destKey==='RCKH') return true;
@@ -139,8 +141,10 @@ function crossesRidge(pos,destKey){
 // 使用者:通常不太會轉降豐年);選單還是可以指定,指定了方向就跟著定(見 pickDir)。
 // v2.2.2 加上三個報告點(使用者:會有機會改降到池上、成功、長虹橋),各 10,
 // 合起來大約四分之一的題目。比例是暫定的。
+// v2.2.3 加上台中、松山,各 5(使用者決定,距離長,出現少一點)。
 var WEIGHT=[['RCKH',25],['RCLY',25],['RCGI',20],['RCYU',10],
-            ['CHISHANG',10],['CHENGGONG',10],['CHANGHONG',10]];
+            ['CHISHANG',10],['CHENGGONG',10],['CHANGHONG',10],
+            ['RCMQ',5],['RCSS',5]];
 
 // force：'auto' 或指定 ICAO 代碼；rnd：可注入固定種子的亂數
 function pickDest(force,rnd){

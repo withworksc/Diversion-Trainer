@@ -154,15 +154,16 @@ function answers(s,r,lang){
   var altKey = (pt && d.altMin) ? 'a5.altMin'
              : pt ? 'a5.altPoint'
              : (s.dest==='RCFN'||s.dest==='RCYU') ? 'a5.alt2500'
-             : (s.dest==='RCKW'||s.dest==='RCKH') ? 'a5.alt3000' : 'a5.altIsland';
+             : (s.dest==='RCKW'||s.dest==='RCKH'||s.dest==='RCMQ'||s.dest==='RCSS') ? 'a5.alt3000'
+             : 'a5.altIsland';
   var al='<p class="big">'+t(lang,altKey,{corr:d.corridor, alt:d.altMin?d.altMin.toLocaleString('en-US'):''})+'</p>'+
     '<p class="note">'+Data.L(d,'note',lang)+'</p>';
   // 報告點沒有機場空域可報,改成提示走廊
   if(!pt) al+='<p class="note">'+t(lang,'a5.airspace',{air:d.air})+'</p>';
-  // 報告點的地形各不相同,寫在資料裡;南端(鵝鑾鼻以西)往東北切過的是恆春半島南端的丘陵,
-  // 不是中央山脈,不要報大漢山
-  if(r.ridge) al+='<p class="note">'+(pt ? Data.L(d,'ridge',lang)
-                                         : t(lang,(s.pos.fi<0)?'a5.ridgeCape':'a5.ridge'))+'</p>';
+  // 報告點與台中、松山(v2.2.3)的地形各不相同,寫在資料的 ridge 欄位;其他機場用通用句。
+  // 南端(鵝鑾鼻以西)往東北切過的是恆春半島南端的丘陵,不是中央山脈,不要報大漢山
+  if(r.ridge) al+='<p class="note">'+(d.ridge ? Data.L(d,'ridge',lang)
+                                             : t(lang,(s.pos.fi<0)?'a5.ridgeCape':'a5.ridge'))+'</p>';
   if(r.alt) al+=altBlock(lang,'<p class="alt-big">'+t(lang,'a5.alt3000')+'</p><p class="note">'+t(lang,'alt.alt')+'</p>');
   A[4]=al;
 

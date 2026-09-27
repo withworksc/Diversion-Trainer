@@ -17,9 +17,10 @@
 })(this, function(Geo, Data, I18n){
 'use strict';
 
-// 底圖裁切範圍：花蓮（RCYU）到蘭嶼／鵝鑾鼻，見 tools/make_chart.py 的 CROP。
+// 底圖裁切範圍：松山（RCSS）到蘭嶼／鵝鑾鼻，西到澎湖，見 tools/make_chart.py 的 CROP。
+// v2.2.3 加台中、松山時往北、往西擴大(原本只到 24.30°N,松山在圖外);檔名沿用 chart-south。
 // 座標要跟 assets/chart-south.json 的 bounds 一致；換圖時兩邊一起改。
-var CHART = {lon0:119.85, lon1:121.90, lat0:21.75, lat1:24.30, src:'assets/chart-south.png'};
+var CHART = {lon0:119.40, lon1:122.05, lat0:21.75, lat1:25.40, src:'assets/chart-south.png'};
 
 // 把需要顯示的點都框進視窗，回傳投影函式 P(lat,lon) -> [x,y]（viewBox 像素）
 function makeProj(need,W,H,pad,minSpan){

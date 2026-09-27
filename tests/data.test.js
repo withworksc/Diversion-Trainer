@@ -20,7 +20,7 @@ test('GID 在綠島機場',()=>{
 });
 
 describe('機場資料：燈光與空域',()=>{
-  const lit={RCFN:true,RCGI:false,RCLY:false,RCKW:false,RCKH:true,RCYU:true};
+  const lit={RCFN:true,RCGI:false,RCLY:false,RCKW:false,RCKH:true,RCYU:true,RCMQ:true,RCSS:true};
   for(const k in lit){
     test(`${k} lit=${lit[k]}`,()=>{assert.equal(Data.AD[k].lit,lit[k])});
   }
@@ -51,4 +51,32 @@ test('VOR 選擇的切換點跟 CHAIN 自己標的 vor 欄位一致(達仁→HCN
   const dr=Data.CHAIN.find(c=>c.k==='DR'), dw=Data.CHAIN.find(c=>c.k==='DW');
   assert.equal(dr.vor,'HCN');
   assert.equal(dw.vor,'GID');
+});
+
+describe('v2.2.3:台中、松山的資料方塊照航圖',()=>{
+  // 航圖:CINGCYUANGANG (RCMQ) 665 L H 37、Taichung D GND - 3500;SONGSHAN (RCSS) 18 L H 26、Songshan C GND - 7000
+  const exp={RCMQ:{elev:665,rwy:'3,700 m',air:'Taichung D GND-3500'},RCSS:{elev:18,rwy:'2,600 m',air:'Songshan C GND-7000'}};
+  for(const k in exp) test(k,()=>{
+    for(const f in exp[k]) assert.equal(Data.AD[k][f],exp[k][f],`${k}.${f}`);
+    assert.ok(Data.AD[k].ridge&&Data.AD[k].ridgeEn,`${k} 要有 ridge 提示`);
+  });
+  test('座標跟公告座標差不到 0.3 NM(航圖上量機場符號)',()=>{
+    const pub={RCMQ:{lat:24.2642,lon:120.6206},RCSS:{lat:25.0694,lon:121.5522}};
+    for(const k in pub){ const d=Geo.dist(pub[k],Data.AD[k]); assert.ok(d<0.3,`${k} 差 ${d.toFixed(2)} NM`); }
+  });
+});
+
+describe('底圖範圍',()=>{
+  const Map=require('../js/map.js');
+  const C=Map.CHART;
+  test('js/map.js 的 CHART 跟 assets/chart-south.json 的 bounds 一致(換底圖時兩邊要一起改)',()=>{
+    const json=require('../assets/chart-south.json');
+    for(const f of ['lon0','lon1','lat0','lat1']) assert.equal(C[f],json.bounds[f],f);
+  });
+  test('每個改降目的地、檢查點、VOR 都在底圖裡,離邊界至少 0.1°',()=>{
+    const pts=Object.entries(Data.DEST).concat(Data.CHAIN.map(p=>[p.k,p]),Data.CAPE.map(p=>[p.k,p]),Object.entries(Data.VOR));
+    for(const [k,p] of pts){
+      assert.ok(p.lon-C.lon0>=0.1&&C.lon1-p.lon>=0.1&&p.lat-C.lat0>=0.1&&C.lat1-p.lat>=0.1,`${k} (${p.lat},${p.lon}) 太靠近底圖邊界`);
+    }
+  });
 });
